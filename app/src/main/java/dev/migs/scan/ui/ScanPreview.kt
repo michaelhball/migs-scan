@@ -9,8 +9,20 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
@@ -51,6 +63,14 @@ fun ScanPreview(
 
     val pagerState = rememberPagerState(pageCount = { scan.pages.size.coerceAtLeast(1) })
     val context = LocalContext.current
+    // When any page is zoomed in, suppress the pager's horizontal swipe so
+    // panning the zoomed page doesn't accidentally flip to the next one.
+    var zoomedPageScale by remember { mutableFloatStateOf(1f) }
+    val isZoomed = zoomedPageScale > 1.01f
+    LaunchedEffect(pagerState.currentPage) {
+        // Reset zoom whenever the user lands on a new page.
+        zoomedPageScale = 1f
+    }
 
     Scaffold(
         topBar = {
@@ -108,20 +128,19 @@ fun ScanPreview(
                 Column(modifier = Modifier.fillMaxSize()) {
                     HorizontalPager(
                         state = pagerState,
+                        userScrollEnabled = !isZoomed,
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth(),
                     ) { pageIndex ->
-                        AsyncImage(
-                            model = ImageRequest.Builder(context)
-                                .data(scan.pages[pageIndex])
-                                .crossfade(true)
-                                .build(),
+                        ZoomablePage(
+                            model = scan.pages[pageIndex],
                             contentDescription = "Page ${pageIndex + 1}",
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color.Black),
+                            onScaleChange = { newScale ->
+                                if (pageIndex == pagerState.currentPage) {
+                                    zoomedPageScale = newScale
+                                }
+                            },
                         )
                     }
                     if (scan.pages.size > 1) {
@@ -138,6 +157,73 @@ fun ScanPreview(
         }
     }
 }
+
+/**
+ * One pager-friendly page: AsyncImage wrapped in pinch-to-zoom + pan, with
+ * double-tap toggling between fit and 2.5x. Reports its current scale up to
+ * the host so the pager can disable horizontal swiping while zoomed in.
+ */
+@Composable
+private fun ZoomablePage(
+    model: Any,
+    contentDescription: String?,
+    onScaleChange: (Float) -> Unit,
+) {
+    val context = LocalContext.current
+    var scale by remember { mutableFloatStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+
+    fun setScale(newScale: Float) {
+        scale = newScale.coerceIn(MinZoom, MaxZoom)
+        if (scale <= 1.01f) offset = Offset.Zero
+        onScaleChange(scale)
+    }
+
+    val transformState = rememberTransformableState { zoom, pan, _ ->
+        setScale(scale * zoom)
+        if (scale > 1f) {
+            offset = offset + pan
+        } else {
+            offset = Offset.Zero
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .transformable(transformState)
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onDoubleTap = {
+                        setScale(if (scale > 1.01f) 1f else DoubleTapZoom)
+                    },
+                )
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        AsyncImage(
+            model = ImageRequest.Builder(context)
+                .data(model)
+                .crossfade(true)
+                .build(),
+            contentDescription = contentDescription,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer(
+                    scaleX = scale,
+                    scaleY = scale,
+                    translationX = offset.x,
+                    translationY = offset.y,
+                ),
+        )
+    }
+}
+
+private const val MinZoom = 1f
+private const val MaxZoom = 5f
+private const val DoubleTapZoom = 2.5f
 
 @Composable
 private fun PagerDots(count: Int, current: Int, modifier: Modifier = Modifier) {
