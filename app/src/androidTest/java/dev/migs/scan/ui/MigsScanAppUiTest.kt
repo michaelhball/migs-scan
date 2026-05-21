@@ -7,6 +7,8 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextClearance
+import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
@@ -73,9 +75,9 @@ class MigsScanAppUiTest {
         composeRule.onAllNodesWithText("No scans yet").fetchSemanticsNodes().also {
             assertThat(it).isEmpty()
         }
-        // Three rows, all showing "1 page".
-        val pageLabels = composeRule.onAllNodesWithText("1 page").fetchSemanticsNodes()
-        assertThat(pageLabels).hasSize(3)
+        // Each row shows the default "Scan yyyy-MM-dd HHmm" title.
+        val titles = composeRule.onAllNodesWithText("Scan ", substring = true).fetchSemanticsNodes()
+        assertThat(titles.size).isAtLeast(3)
     }
 
     @Test fun tappingAScanRowOpensTheActionSheet() {
@@ -92,7 +94,32 @@ class MigsScanAppUiTest {
         composeRule.onNodeWithText("Share as PDF").assertIsDisplayed()
         composeRule.onNodeWithText("Share as JPEG").assertIsDisplayed()
         composeRule.onNodeWithText("Share as PNG").assertIsDisplayed()
+        composeRule.onNodeWithText("Rename").assertIsDisplayed()
         composeRule.onNodeWithText("Delete").assertIsDisplayed()
+    }
+
+    @Test fun renameDialogPersistsTheNewNameAndUpdatesTheList() {
+        runBlocking { store.persist(payload(label = "only")) }
+
+        composeRule.setContent {
+            MigsScanTheme { MigsScanApp(vm = ScanViewModel(app, store)) }
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithContentDescription("Share").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Rename").performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("Name").performTextClearance()
+        composeRule.onNodeWithText("Name").performTextInput("Passport application")
+        composeRule.onNodeWithText("Save").performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("Passport application").assertIsDisplayed()
+        // Disk reflects the new name too.
+        val onDisk = runBlocking { store.loadAll().single() }
+        assertThat(onDisk.name).isEqualTo("Passport application")
     }
 
     private fun payload(label: String): ScanPayload = ScanPayload(

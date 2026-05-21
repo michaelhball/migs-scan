@@ -16,9 +16,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DocumentScanner
+import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -29,9 +31,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -64,6 +68,7 @@ fun MigsScanApp(vm: ScanViewModel = viewModel()) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var openedScan by remember { mutableStateOf<Scan?>(null) }
+    var renamingScan by remember { mutableStateOf<Scan?>(null) }
 
     val launchScanner = rememberDocumentScannerLauncher { result ->
         if (result != null) vm.onScanResult(result)
@@ -108,10 +113,25 @@ fun MigsScanApp(vm: ScanViewModel = viewModel()) {
                     openedScan = null
                 }
             },
+            onRename = {
+                openedScan = null
+                renamingScan = scan
+            },
             onDelete = {
                 vm.delete(scan)
                 openedScan = null
             },
+        )
+    }
+
+    renamingScan?.let { scan ->
+        RenameDialog(
+            scan = scan,
+            onConfirm = { newName ->
+                vm.rename(scan, newName)
+                renamingScan = null
+            },
+            onDismiss = { renamingScan = null },
         )
     }
 }
@@ -170,12 +190,13 @@ private fun ScanRow(scan: Scan, onClick: () -> Unit) {
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "${scan.pages.size} page${if (scan.pages.size == 1) "" else "s"}",
+                    text = scan.name,
                     style = MaterialTheme.typography.titleMedium,
+                    maxLines = 2,
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = rowDateFormat.format(scan.createdAt),
+                    text = "${scan.pages.size} page${if (scan.pages.size == 1) "" else "s"} · ${rowDateFormat.format(scan.createdAt)}",
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -192,6 +213,7 @@ private fun ScanActionSheet(
     scan: Scan,
     onDismiss: () -> Unit,
     onShare: (ShareFormat) -> Unit,
+    onRename: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -200,11 +222,18 @@ private fun ScanActionSheet(
         sheetState = sheetState,
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
-            Text(
-                text = "${scan.pages.size}-page scan · ${rowDateFormat.format(scan.createdAt)}",
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)) {
+                Text(
+                    text = scan.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 2,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = "${scan.pages.size}-page scan · ${rowDateFormat.format(scan.createdAt)}",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
             HorizontalDivider()
             SheetAction(
                 icon = Icons.Filled.PictureAsPdf,
@@ -223,6 +252,11 @@ private fun ScanActionSheet(
             )
             HorizontalDivider()
             SheetAction(
+                icon = Icons.Filled.DriveFileRenameOutline,
+                label = "Rename",
+                onClick = onRename,
+            )
+            SheetAction(
                 icon = Icons.Filled.Delete,
                 label = "Delete",
                 onClick = onDelete,
@@ -230,6 +264,34 @@ private fun ScanActionSheet(
             )
         }
     }
+}
+
+@Composable
+private fun RenameDialog(
+    scan: Scan,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var text by remember(scan.id) { mutableStateOf(scan.name) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Rename scan") },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                singleLine = true,
+                label = { Text("Name") },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(text) }) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
 }
 
 @Composable

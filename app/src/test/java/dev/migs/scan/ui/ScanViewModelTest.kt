@@ -74,6 +74,20 @@ class ScanViewModelTest {
         assertThat(scan.pdf.parentFile?.exists()).isFalse()
     }
 
+    @Test fun `rename updates the scan in the list with the new name`() = runTest(mainDispatcherRule.testDispatcher) {
+        val vm = ScanViewModel(app, store)
+        vm.onPayload(payload())
+        advanceUntilIdle()
+        val scan = vm.scans.value.single()
+
+        vm.rename(scan, "Birth certificate")
+        advanceUntilIdle()
+
+        val updated = vm.scans.value.single()
+        assertThat(updated.id).isEqualTo(scan.id)
+        assertThat(updated.name).isEqualTo("Birth certificate")
+    }
+
     @Test fun `init loads scans previously persisted on disk`() = runTest(mainDispatcherRule.testDispatcher) {
         val first = ScanViewModel(app, store).also { it.onPayload(payload(label = "old")) }
         advanceUntilIdle()

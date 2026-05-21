@@ -45,4 +45,11 @@ class ScanViewModel internal constructor(
             _scans.value = _scans.value.filterNot { it.id == scan.id }
         }
     }
+
+    fun rename(scan: Scan, newName: String) {
+        viewModelScope.launch {
+            val renamed = store.rename(scan, newName)
+            _scans.value = _scans.value.map { if (it.id == scan.id) renamed else it }
+        }
+    }
 }
