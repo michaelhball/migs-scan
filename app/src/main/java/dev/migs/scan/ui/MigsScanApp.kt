@@ -100,7 +100,11 @@ fun MigsScanApp(vm: ScanViewModel = viewModel()) {
         previewScan?.let { p -> scans.firstOrNull { it.id == p.id } ?: p }
     }
     val filtered = remember(scans, query) {
-        if (query.isBlank()) scans else scans.filter { it.name.contains(query.trim(), ignoreCase = true) }
+        val q = query.trim()
+        if (q.isEmpty()) scans else scans.filter {
+            it.name.contains(q, ignoreCase = true) ||
+                it.text.contains(q, ignoreCase = true)
+        }
     }
 
     val launchScanner = rememberDocumentScannerLauncher { result ->

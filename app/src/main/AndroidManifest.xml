@@ -12,10 +12,10 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.MigsScan">
 
-        <!-- Hint to Play Services that we use the document scanner module. -->
+        <!-- Hint to Play Services which ML Kit modules to pre-fetch on install. -->
         <meta-data
             android:name="com.google.mlkit.vision.DEPENDENCIES"
-            android:value="docscan_ui" />
+            android:value="docscan_ui,ocr" />
 
         <provider
             android:name=".share.ScanFileProvider"

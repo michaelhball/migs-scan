@@ -22,7 +22,8 @@ class ScanStoreTest {
 
     @Before fun setUp() {
         context = ApplicationProvider.getApplicationContext()
-        store = ScanStore(context)
+        // Use a fake extractor so we never instantiate ML Kit in Robolectric.
+        store = ScanStore(context, textExtractor = TextExtractor.Empty)
         sourceDir = File(context.cacheDir, "fixtures").apply { deleteRecursively(); mkdirs() }
         File(context.filesDir, "scans").deleteRecursively()
     }
@@ -157,6 +158,44 @@ class ScanStoreTest {
 
         // Starred (older) first, then unstarred newer.
         assertThat(loaded.map { it.id }).containsExactly(older.id, newer.id).inOrder()
+    }
+
+    @Test fun `persist runs the text extractor on each page and joins with blank lines`() = runTest {
+        val capturedFiles = mutableListOf<File>()
+        val fakeExtractor = TextExtractor { file ->
+            capturedFiles.add(file)
+            "Text from ${file.name}"
+        }
+        val ocrStore = ScanStore(context, textExtractor = fakeExtractor)
+        val payload = ScanPayload(
+            pdf = Fixtures.fileUri(sourceDir, "src.pdf", Fixtures.pdfBytes()),
+            pages = listOf(
+                Fixtures.fileUri(sourceDir, "p1.jpg", Fixtures.jpegBytes()),
+                Fixtures.fileUri(sourceDir, "p2.jpg", Fixtures.jpegBytes()),
+            ),
+        )
+
+        val scan = ocrStore.persist(payload)
+
+        assertThat(capturedFiles.map { it.name }).containsExactly("page-1.jpg", "page-2.jpg").inOrder()
+        assertThat(scan.text).isEqualTo("Text from page-1.jpg\n\nText from page-2.jpg")
+        assertThat(File(scan.pdf.parentFile, "text.txt").readText()).isEqualTo(scan.text)
+    }
+
+    @Test fun `persist with empty extractor leaves text empty and skips writing the file`() = runTest {
+        val scan = store.persist(payload())  // uses TextExtractor.Empty
+
+        assertThat(scan.text).isEmpty()
+        assertThat(File(scan.pdf.parentFile, "text.txt").exists()).isFalse()
+    }
+
+    @Test fun `loadAll reads the persisted OCR text back into the Scan`() = runTest {
+        val ocrStore = ScanStore(context, textExtractor = TextExtractor { "Page text" })
+        ocrStore.persist(payload())
+
+        val loaded = ocrStore.loadAll().single()
+
+        assertThat(loaded.text).isEqualTo("Page text")
     }
 
     @Test fun `loadAll falls back to default name when name file is missing`() = runTest {

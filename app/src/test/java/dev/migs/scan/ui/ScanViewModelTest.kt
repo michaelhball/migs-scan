@@ -9,6 +9,7 @@ import dev.migs.scan.Fixtures
 import dev.migs.scan.MainDispatcherRule
 import dev.migs.scan.data.ScanPayload
 import dev.migs.scan.data.ScanStore
+import dev.migs.scan.data.TextExtractor
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -35,7 +36,8 @@ class ScanViewModelTest {
         sourceDir = File(app.cacheDir, "vm-fixtures").apply { deleteRecursively(); mkdirs() }
         // Drive ScanStore's IO work through the same test scheduler the VM uses,
         // so advanceUntilIdle() actually waits for persistence to finish.
-        store = ScanStore(app, mainDispatcherRule.testDispatcher)
+        // TextExtractor.Empty keeps us out of ML Kit (no MlKitContext under Robolectric).
+        store = ScanStore(app, mainDispatcherRule.testDispatcher, TextExtractor.Empty)
     }
 
     @After fun tearDown() {

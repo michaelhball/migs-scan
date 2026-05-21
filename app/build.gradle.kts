@@ -87,6 +87,7 @@ dependencies {
     debugImplementation(libs.compose.ui.tooling)
 
     implementation(libs.mlkit.document.scanner)
+    implementation(libs.mlkit.text.recognition)
     implementation(libs.play.services.base)
     implementation(libs.coil.compose)
 

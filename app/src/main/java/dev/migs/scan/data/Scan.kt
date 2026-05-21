@@ -12,4 +12,6 @@ data class Scan(
     val pages: List<File>,
     /** Starred scans pin to the top of the list. */
     val starred: Boolean = false,
+    /** OCR text from all pages, joined with double newlines. Empty if extraction failed. */
+    val text: String = "",
 )

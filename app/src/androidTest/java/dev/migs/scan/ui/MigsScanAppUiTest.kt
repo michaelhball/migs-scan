@@ -17,6 +17,7 @@ import com.google.common.truth.Truth.assertThat
 import dev.migs.scan.Fixtures
 import dev.migs.scan.data.ScanPayload
 import dev.migs.scan.data.ScanStore
+import dev.migs.scan.data.TextExtractor
 import dev.migs.scan.ui.theme.MigsScanTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -40,7 +41,8 @@ class MigsScanAppUiTest {
         app = ApplicationProvider.getApplicationContext()
         File(app.filesDir, "scans").deleteRecursively()
         sourceDir = File(app.cacheDir, "ui-fixtures").apply { deleteRecursively(); mkdirs() }
-        store = ScanStore(app, Dispatchers.Unconfined)
+        // Skip OCR in UI tests — Play Services isn't a fast-path on emulator startup.
+        store = ScanStore(app, Dispatchers.Unconfined, TextExtractor.Empty)
     }
 
     @After fun tearDown() {
@@ -191,6 +193,33 @@ class MigsScanAppUiTest {
         composeRule.onNodeWithText("Permits").assertIsDisplayed()
         runBlocking {
             assertThat(store.loadAll().map { it.name }).containsExactly("Permits")
+        }
+    }
+
+    @Test fun searchAlsoMatchesOcrText() {
+        // First persist gets OCR text, second persist gets nothing — that way we
+        // can search for a substring unique to the first scan's text.
+        var call = 0
+        val ocrStore = ScanStore(app, Dispatchers.Unconfined, TextExtractor {
+            if (call++ == 0) "INVOICE 2024-05-21\nElectricity bill" else ""
+        })
+        runBlocking {
+            ocrStore.persist(payload(label = "a")).also { ocrStore.rename(it, "Photo 1") }
+            ocrStore.persist(payload(label = "b")).also { ocrStore.rename(it, "Photo 2") }
+        }
+
+        composeRule.setContent {
+            MigsScanTheme { MigsScanApp(vm = ScanViewModel(app, ocrStore)) }
+        }
+        composeRule.waitForIdle()
+
+        // "electricity" doesn't appear in any name — only via OCR text.
+        composeRule.onNodeWithText("Search scans").performTextInput("electricity")
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("Photo 1").assertIsDisplayed()
+        composeRule.onAllNodesWithText("Photo 2").fetchSemanticsNodes().also {
+            assertThat(it).isEmpty()
         }
     }
 

@@ -14,6 +14,7 @@ import java.util.UUID
 class ScanStore(
     private val context: Context,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val textExtractor: TextExtractor = TextExtractor.mlKit(context),
 ) {
 
     private val root: File by lazy {
@@ -35,7 +36,14 @@ class ScanStore(
         val name = defaultName(createdAt)
         File(dir, NameFile).writeText(name)
 
-        Scan(id = id, name = name, createdAt = createdAt, pdf = pdf, pages = pages, starred = false)
+        val perPage = mutableListOf<String>()
+        for (page in pages) {
+            perPage.add(textExtractor.extractFrom(page))
+        }
+        val text = perPage.joinToString("\n\n").trim()
+        if (text.isNotEmpty()) File(dir, TextFile).writeText(text)
+
+        Scan(id = id, name = name, createdAt = createdAt, pdf = pdf, pages = pages, starred = false, text = text)
     }
 
     suspend fun loadAll(): List<Scan> = withContext(ioDispatcher) {
@@ -77,6 +85,7 @@ class ScanStore(
             ?.takeIf { it.isNotEmpty() }
             ?: defaultName(createdAt)
         val starred = File(dir, StarredFile).exists()
+        val text = File(dir, TextFile).takeIf { it.exists() }?.readText().orEmpty()
         return Scan(
             id = dir.name,
             name = name,
@@ -84,6 +93,7 @@ class ScanStore(
             pdf = pdf,
             pages = pages,
             starred = starred,
+            text = text,
         )
     }
 
@@ -97,6 +107,7 @@ class ScanStore(
     companion object {
         private const val NameFile = "name.txt"
         private const val StarredFile = "starred"
+        private const val TextFile = "text.txt"
         private val DefaultNameFormat: DateTimeFormatter =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HHmm").withZone(ZoneId.systemDefault())
 
