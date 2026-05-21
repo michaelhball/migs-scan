@@ -80,7 +80,13 @@ fun MigsScanApp(vm: ScanViewModel = viewModel()) {
     val scope = rememberCoroutineScope()
     var openedScan by remember { mutableStateOf<Scan?>(null) }
     var renamingScan by remember { mutableStateOf<Scan?>(null) }
+    var previewScan by remember { mutableStateOf<Scan?>(null) }
     var query by remember { mutableStateOf("") }
+
+    // Keep the previewed scan in sync if it gets renamed underneath us.
+    val livePreviewScan = remember(previewScan, scans) {
+        previewScan?.let { p -> scans.firstOrNull { it.id == p.id } ?: p }
+    }
     val filtered = remember(scans, query) {
         if (query.isBlank()) scans else scans.filter { it.name.contains(query.trim(), ignoreCase = true) }
     }
@@ -89,36 +95,45 @@ fun MigsScanApp(vm: ScanViewModel = viewModel()) {
         if (result != null) vm.onScanResult(result)
     }
 
-    Surface(modifier = Modifier.fillMaxSize()) {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text("MigsScan") },
-                    // surfaceContainer reads as a subtle "bar" tier above the
-                    // page background, so the title doesn't float in space.
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    ),
-                )
-            },
-            floatingActionButton = {
-                ExtendedFloatingActionButton(
-                    onClick = launchScanner,
-                    icon = { Icon(Icons.Filled.DocumentScanner, contentDescription = null) },
-                    text = { Text("Scan") },
-                )
-            },
-        ) { padding ->
-            when {
-                scans.isEmpty() -> EmptyState(padding = padding, onScanClick = launchScanner)
-                else -> ScanListWithSearch(
-                    scans = scans,
-                    filtered = filtered,
-                    query = query,
-                    onQueryChange = { query = it },
-                    padding = padding,
-                    onSelect = { openedScan = it },
-                )
+    if (livePreviewScan != null) {
+        ScanPreview(
+            scan = livePreviewScan,
+            onClose = { previewScan = null },
+            onMoreActions = { openedScan = livePreviewScan },
+        )
+    } else {
+        Surface(modifier = Modifier.fillMaxSize()) {
+            Scaffold(
+                topBar = {
+                    TopAppBar(
+                        title = { Text("MigsScan") },
+                        // surfaceContainer reads as a subtle "bar" tier above the
+                        // page background, so the title doesn't float in space.
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                        ),
+                    )
+                },
+                floatingActionButton = {
+                    ExtendedFloatingActionButton(
+                        onClick = launchScanner,
+                        icon = { Icon(Icons.Filled.DocumentScanner, contentDescription = null) },
+                        text = { Text("Scan") },
+                    )
+                },
+            ) { padding ->
+                when {
+                    scans.isEmpty() -> EmptyState(padding = padding, onScanClick = launchScanner)
+                    else -> ScanListWithSearch(
+                        scans = scans,
+                        filtered = filtered,
+                        query = query,
+                        onQueryChange = { query = it },
+                        padding = padding,
+                        onOpenPreview = { previewScan = it },
+                        onOpenActions = { openedScan = it },
+                    )
+                }
             }
         }
     }
@@ -186,7 +201,8 @@ private fun ScanListWithSearch(
     query: String,
     onQueryChange: (String) -> Unit,
     padding: PaddingValues,
-    onSelect: (Scan) -> Unit,
+    onOpenPreview: (Scan) -> Unit,
+    onOpenActions: (Scan) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -238,7 +254,13 @@ private fun ScanListWithSearch(
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(filtered, key = { it.id }) { scan -> ScanRow(scan, onClick = { onSelect(scan) }) }
+                items(filtered, key = { it.id }) { scan ->
+                    ScanRow(
+                        scan = scan,
+                        onClick = { onOpenPreview(scan) },
+                        onShareClick = { onOpenActions(scan) },
+                    )
+                }
             }
         }
     }
@@ -248,7 +270,7 @@ private val rowDateFormat = DateTimeFormatter.ofPattern("MMM d, yyyy · HH:mm")
     .withZone(ZoneId.systemDefault())
 
 @Composable
-private fun ScanRow(scan: Scan, onClick: () -> Unit) {
+private fun ScanRow(scan: Scan, onClick: () -> Unit, onShareClick: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -268,7 +290,7 @@ private fun ScanRow(scan: Scan, onClick: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
-            IconButton(onClick = onClick) {
+            IconButton(onClick = onShareClick) {
                 Icon(Icons.Filled.Share, contentDescription = "Share")
             }
         }

@@ -129,6 +129,26 @@ class MigsScanAppUiTest {
         composeRule.onNodeWithText("Passport").assertIsDisplayed()
     }
 
+    @Test fun tappingAScanRowOpensThePreviewScreen() {
+        runBlocking {
+            val scan = store.persist(payload(label = "only"))
+            store.rename(scan, "Lease agreement")
+        }
+
+        composeRule.setContent {
+            MigsScanTheme { MigsScanApp(vm = ScanViewModel(app, store)) }
+        }
+        composeRule.waitForIdle()
+
+        // Tap the row itself (its title, not the share icon).
+        composeRule.onNodeWithText("Lease agreement").performClick()
+        composeRule.waitForIdle()
+
+        // Preview's TopAppBar shows the scan name + page count, and there's a Back button.
+        composeRule.onNodeWithContentDescription("Back").assertIsDisplayed()
+        composeRule.onNodeWithText("1 page").assertIsDisplayed()
+    }
+
     @Test fun renameDialogPersistsTheNewNameAndUpdatesTheList() {
         runBlocking { store.persist(payload(label = "only")) }
 
