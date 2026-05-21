@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Page with folded corner. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M40,33 L62,33 L74,45 L74,75 L40,75 Z" />
+    <path
+        android:fillColor="#33000000"
+        android:pathData="M62,33 L62,45 L74,45 Z" />
+
+    <!-- Scan viewfinder brackets. -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M28,34 L28,28 L34,28" />
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M80,34 L80,28 L74,28" />
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M28,74 L28,80 L34,80" />
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M80,74 L80,80 L74,80" />
+</vector>
