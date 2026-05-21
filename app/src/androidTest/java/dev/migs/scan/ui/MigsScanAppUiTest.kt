@@ -98,6 +98,37 @@ class MigsScanAppUiTest {
         composeRule.onNodeWithText("Delete").assertIsDisplayed()
     }
 
+    @Test fun searchFiltersTheListByScanName() {
+        runBlocking {
+            store.persist(payload(label = "a")).also { store.rename(it, "Passport") }
+            store.persist(payload(label = "b")).also { store.rename(it, "Tax return") }
+            store.persist(payload(label = "c")).also { store.rename(it, "Recipe — pasta") }
+        }
+
+        composeRule.setContent {
+            MigsScanTheme { MigsScanApp(vm = ScanViewModel(app, store)) }
+        }
+        composeRule.waitForIdle()
+
+        // All three visible before any search.
+        composeRule.onNodeWithText("Passport").assertIsDisplayed()
+        composeRule.onNodeWithText("Tax return").assertIsDisplayed()
+        composeRule.onNodeWithText("Recipe — pasta").assertIsDisplayed()
+
+        // Type a query — only matching scans remain.
+        composeRule.onNodeWithText("Search scans").performTextInput("tax")
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Tax return").assertIsDisplayed()
+        composeRule.onAllNodesWithText("Passport").fetchSemanticsNodes().also {
+            assertThat(it).isEmpty()
+        }
+
+        // Clear via the X icon — list comes back.
+        composeRule.onNodeWithContentDescription("Clear search").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Passport").assertIsDisplayed()
+    }
+
     @Test fun renameDialogPersistsTheNewNameAndUpdatesTheList() {
         runBlocking { store.persist(payload(label = "only")) }
 

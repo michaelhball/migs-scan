@@ -14,11 +14,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -69,6 +71,10 @@ fun MigsScanApp(vm: ScanViewModel = viewModel()) {
     val scope = rememberCoroutineScope()
     var openedScan by remember { mutableStateOf<Scan?>(null) }
     var renamingScan by remember { mutableStateOf<Scan?>(null) }
+    var query by remember { mutableStateOf("") }
+    val filtered = remember(scans, query) {
+        if (query.isBlank()) scans else scans.filter { it.name.contains(query.trim(), ignoreCase = true) }
+    }
 
     val launchScanner = rememberDocumentScannerLauncher { result ->
         if (result != null) vm.onScanResult(result)
@@ -94,10 +100,16 @@ fun MigsScanApp(vm: ScanViewModel = viewModel()) {
                 )
             },
         ) { padding ->
-            if (scans.isEmpty()) {
-                EmptyState(padding = padding, onScanClick = launchScanner)
-            } else {
-                ScanList(scans = scans, padding = padding, onSelect = { openedScan = it })
+            when {
+                scans.isEmpty() -> EmptyState(padding = padding, onScanClick = launchScanner)
+                else -> ScanListWithSearch(
+                    scans = scans,
+                    filtered = filtered,
+                    query = query,
+                    onQueryChange = { query = it },
+                    padding = padding,
+                    onSelect = { openedScan = it },
+                )
             }
         }
     }
@@ -159,22 +171,67 @@ private fun EmptyState(padding: PaddingValues, onScanClick: () -> Unit) {
 }
 
 @Composable
-private fun ScanList(
+private fun ScanListWithSearch(
     scans: List<Scan>,
+    filtered: List<Scan>,
+    query: String,
+    onQueryChange: (String) -> Unit,
     padding: PaddingValues,
     onSelect: (Scan) -> Unit,
 ) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(
-            top = padding.calculateTopPadding() + 12.dp,
-            bottom = padding.calculateBottomPadding() + 96.dp,
-            start = 16.dp,
-            end = 16.dp,
-        ),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(top = padding.calculateTopPadding()),
     ) {
-        items(scans, key = { it.id }) { scan -> ScanRow(scan, onClick = { onSelect(scan) }) }
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            singleLine = true,
+            placeholder = { Text("Search scans") },
+            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+            trailingIcon = {
+                if (query.isNotEmpty()) {
+                    IconButton(onClick = { onQueryChange("") }) {
+                        Icon(Icons.Filled.Clear, contentDescription = "Clear search")
+                    }
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+        )
+
+        if (filtered.isEmpty()) {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text(
+                    "No scans match \"${query.trim()}\"",
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "${scans.size} total scan${if (scans.size == 1) "" else "s"} — try a different search",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    top = 4.dp,
+                    bottom = padding.calculateBottomPadding() + 96.dp,
+                    start = 16.dp,
+                    end = 16.dp,
+                ),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                items(filtered, key = { it.id }) { scan -> ScanRow(scan, onClick = { onSelect(scan) }) }
+            }
+        }
     }
 }
 
