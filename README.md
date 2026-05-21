@@ -58,8 +58,13 @@ The debug APK lands in `app/build/outputs/apk/debug/`.
 
 ```sh
 ./gradlew :app:testDebugUnitTest          # local JVM + Robolectric (no device)
-./gradlew :app:connectedDebugAndroidTest  # on-device suite (phone must be plugged in)
+./gradlew :app:pixel6api36DebugAndroidTest  # on-device suite on a managed headless emulator
+./gradlew :app:connectedDebugAndroidTest  # on-device suite against a plugged-in phone
 ```
+
+The `pixel6api36` device is provisioned automatically the first time
+you run it (a `google_apis_playstore` system image is downloaded —
+~1 GB). After that runs are fast and offline.
 
 | Suite | Files | What it covers |
 |---|---|---|
