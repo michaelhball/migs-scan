@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Persistent scans live under filesDir/scans/<id>/ . -->
+    <files-path name="scans" path="scans/" />
+    <!-- On-demand PNG re-encodes live in cacheDir. -->
+    <cache-path name="png" path="png/" />
+</paths>
