@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarOutline
@@ -75,6 +76,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.migs.scan.data.Scan
+import dev.migs.scan.settings.SettingsScreen
+import dev.migs.scan.settings.SettingsViewModel
 import dev.migs.scan.share.ShareFormat
 import dev.migs.scan.share.Sharing
 import kotlinx.coroutines.launch
@@ -83,8 +86,13 @@ import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MigsScanApp(vm: ScanViewModel = viewModel()) {
+fun MigsScanApp(
+    vm: ScanViewModel = viewModel(),
+    settingsVm: SettingsViewModel = viewModel(),
+) {
     val scans by vm.scans.collectAsStateWithLifecycle()
+    val settings by settingsVm.settings.collectAsStateWithLifecycle()
+    var settingsOpen by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var openedScan by remember { mutableStateOf<Scan?>(null) }
@@ -104,7 +112,7 @@ fun MigsScanApp(vm: ScanViewModel = viewModel()) {
     val liveEditingScan = remember(editingScan, scans) {
         editingScan?.let { e -> scans.firstOrNull { it.id == e.id } ?: e }
     }
-    val launchAppendScanner = rememberDocumentScannerLauncher { result ->
+    val launchAppendScanner = rememberDocumentScannerLauncher(settings.scannerUi) { result ->
         val scanToGrow = liveEditingScan
         if (result != null && scanToGrow != null) {
             vm.appendPages(scanToGrow, result)
@@ -118,11 +126,13 @@ fun MigsScanApp(vm: ScanViewModel = viewModel()) {
         }
     }
 
-    val launchScanner = rememberDocumentScannerLauncher { result ->
+    val launchScanner = rememberDocumentScannerLauncher(settings.scannerUi) { result ->
         if (result != null) vm.onScanResult(result)
     }
 
-    if (liveEditingScan != null) {
+    if (settingsOpen) {
+        SettingsScreen(onClose = { settingsOpen = false }, vm = settingsVm)
+    } else if (liveEditingScan != null) {
         ScanPageEditor(
             scan = liveEditingScan,
             onClose = { editingScan = null },
@@ -156,6 +166,11 @@ fun MigsScanApp(vm: ScanViewModel = viewModel()) {
                     } else {
                         TopAppBar(
                             title = { Text("MigsScan") },
+                            actions = {
+                                IconButton(onClick = { settingsOpen = true }) {
+                                    Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                                }
+                            },
                             // surfaceContainer reads as a subtle "bar" tier above the
                             // page background, so the title doesn't float in space.
                             colors = TopAppBarDefaults.topAppBarColors(
@@ -193,10 +208,17 @@ fun MigsScanApp(vm: ScanViewModel = viewModel()) {
                             }
                         },
                         onOpenActions = { onClicked ->
-                            if (inSelectionMode) {
-                                selectedIds = selectedIds.toggle(onClicked.id)
-                            } else {
-                                openedScan = onClicked
+                            when {
+                                inSelectionMode -> selectedIds = selectedIds.toggle(onClicked.id)
+                                settings.defaultShareFormat != null -> {
+                                    // User picked a default format — skip the sheet entirely.
+                                    val format = settings.defaultShareFormat!!
+                                    scope.launch {
+                                        val intent = Sharing.buildShareIntent(context, onClicked, format)
+                                        context.startActivity(intent)
+                                    }
+                                }
+                                else -> openedScan = onClicked
                             }
                         },
                         onToggleStar = {

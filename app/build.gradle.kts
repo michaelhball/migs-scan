@@ -90,6 +90,7 @@ dependencies {
     implementation(libs.mlkit.text.recognition)
     implementation(libs.play.services.base)
     implementation(libs.coil.compose)
+    implementation(libs.androidx.datastore.preferences)
 
     coreLibraryDesugaring(libs.desugar.jdk.libs)
 
