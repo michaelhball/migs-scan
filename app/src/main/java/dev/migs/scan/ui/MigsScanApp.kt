@@ -33,6 +33,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -70,7 +71,16 @@ fun MigsScanApp(vm: ScanViewModel = viewModel()) {
 
     Surface(modifier = Modifier.fillMaxSize()) {
         Scaffold(
-            topBar = { TopAppBar(title = { Text("MigsScan") }) },
+            topBar = {
+                TopAppBar(
+                    title = { Text("MigsScan") },
+                    // surfaceContainer reads as a subtle "bar" tier above the
+                    // page background, so the title doesn't float in space.
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    ),
+                )
+            },
             floatingActionButton = {
                 ExtendedFloatingActionButton(
                     onClick = launchScanner,
