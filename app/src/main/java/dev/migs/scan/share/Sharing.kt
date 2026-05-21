@@ -5,11 +5,14 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.system.Os
 import androidx.core.content.FileProvider
 import dev.migs.scan.data.Scan
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 /** Resolves an on-disk [File] to a content URI safe to share with other apps. */
 fun interface UriProvider {
@@ -33,21 +36,21 @@ object Sharing {
         format: ShareFormat,
         uriProvider: UriProvider = defaultUriProvider(context),
     ): Intent = withContext(Dispatchers.IO) {
-        when (format) {
-            ShareFormat.Pdf -> singleFileIntent(scan.pdf, format.mime, uriProvider)
-            ShareFormat.Jpeg -> multipleFileIntent(scan.pages, format.mime, uriProvider)
-            ShareFormat.Png -> multipleFileIntent(encodePages(context, scan), format.mime, uriProvider)
+        val (files, mime) = sourcesFor(context, scan, format)
+        val aliases = files.mapIndexed { i, src ->
+            alias(context, scan, src, friendlyName(scan, format, i, files.size))
         }
+        chooserIntent(aliases, mime, uriProvider)
     }
 
-    private fun singleFileIntent(file: File, mime: String, uriProvider: UriProvider): Intent =
-        Intent(Intent.ACTION_SEND).apply {
-            type = mime
-            putExtra(Intent.EXTRA_STREAM, uriProvider.uriFor(file))
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }.let(::asChooser)
+    private fun sourcesFor(context: Context, scan: Scan, format: ShareFormat): Pair<List<File>, String> =
+        when (format) {
+            ShareFormat.Pdf -> listOf(scan.pdf) to format.mime
+            ShareFormat.Jpeg -> scan.pages to format.mime
+            ShareFormat.Png -> encodePages(context, scan) to format.mime
+        }
 
-    private fun multipleFileIntent(files: List<File>, mime: String, uriProvider: UriProvider): Intent {
+    private fun chooserIntent(files: List<File>, mime: String, uriProvider: UriProvider): Intent {
         val uris = ArrayList(files.map(uriProvider::uriFor))
         val base = if (uris.size == 1) {
             Intent(Intent.ACTION_SEND).apply { putExtra(Intent.EXTRA_STREAM, uris[0]) }
@@ -64,6 +67,47 @@ object Sharing {
         Intent.createChooser(intent, "Share scan").apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
+
+    /**
+     * Returns a file under cacheDir/share/<scan-id>/ named [displayName] that
+     * resolves to the same bytes as [source]. Uses a hard link if possible
+     * (zero data copy, same filesystem) and falls back to a real copy if the
+     * link syscall fails (e.g. SELinux denial on some OEM builds).
+     *
+     * The chooser preview shows the URI's last path segment as the filename,
+     * so the alias's name is what users see in the share sheet.
+     */
+    private fun alias(context: Context, scan: Scan, source: File, displayName: String): File {
+        val dir = File(context.cacheDir, "share/${scan.id}").apply { mkdirs() }
+        val target = File(dir, displayName)
+        if (target.exists() && target.length() == source.length()) return target
+        target.delete()
+        try {
+            Os.link(source.absolutePath, target.absolutePath)
+        } catch (_: Throwable) {
+            // Cross-filesystem link / SELinux denial / etc — fall through.
+        }
+        // Verify the link actually landed. Robolectric's Os shadow no-ops
+        // silently, and some OEM SELinux policies do the same on-device, so
+        // a real copy is the only guaranteed path.
+        if (!target.exists() || target.length() != source.length()) {
+            source.copyTo(target, overwrite = true)
+        }
+        return target
+    }
+
+    private val NameDateFormat: DateTimeFormatter =
+        DateTimeFormatter.ofPattern("yyyy-MM-dd HHmm").withZone(ZoneId.systemDefault())
+
+    internal fun friendlyName(scan: Scan, format: ShareFormat, index: Int, total: Int): String {
+        val ts = NameDateFormat.format(scan.createdAt)
+        val ext = when (format) {
+            ShareFormat.Pdf -> "pdf"
+            ShareFormat.Jpeg -> "jpg"
+            ShareFormat.Png -> "png"
+        }
+        return if (total > 1) "Scan $ts p${index + 1}.$ext" else "Scan $ts.$ext"
+    }
 
     private fun encodePages(context: Context, scan: Scan): List<File> {
         val dir = File(context.cacheDir, "png/${scan.id}").apply { mkdirs() }

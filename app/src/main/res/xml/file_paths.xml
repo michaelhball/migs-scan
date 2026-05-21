@@ -4,4 +4,6 @@
     <files-path name="scans" path="scans/" />
     <!-- On-demand PNG re-encodes live in cacheDir. -->
     <cache-path name="png" path="png/" />
+    <!-- Friendly-named hard-link aliases the chooser shows by URI segment. -->
+    <cache-path name="share" path="share/" />
 </paths>

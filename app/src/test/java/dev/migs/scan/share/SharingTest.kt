@@ -31,13 +31,55 @@ class SharingTest {
 
     @Before fun setUp() {
         context = ApplicationProvider.getApplicationContext()
-        scanDir = File(context.filesDir, "scans/test-scan").apply { deleteRecursively(); mkdirs() }
+        scanDir = File(context.filesDir, "scans/1779358000000-deadbeef").apply { deleteRecursively(); mkdirs() }
         File(context.cacheDir, "png").deleteRecursively()
+        File(context.cacheDir, "share").deleteRecursively()
     }
 
     @After fun tearDown() {
         scanDir.parentFile?.deleteRecursively()
         File(context.cacheDir, "png").deleteRecursively()
+        File(context.cacheDir, "share").deleteRecursively()
+    }
+
+    @Test fun `friendlyName uses Scan + timestamp + extension for a single-file share`() {
+        val scan = oneFakeScan(pageCount = 1)
+        val name = Sharing.friendlyName(scan, ShareFormat.Pdf, index = 0, total = 1)
+        assertThat(name).startsWith("Scan ")
+        assertThat(name).endsWith(".pdf")
+        assertThat(name).doesNotContain("p1")  // no page suffix for single-file shares
+    }
+
+    @Test fun `friendlyName appends page suffix for multi-file shares`() {
+        val scan = oneFakeScan(pageCount = 3)
+        val name = Sharing.friendlyName(scan, ShareFormat.Jpeg, index = 1, total = 3)
+        assertThat(name).endsWith(" p2.jpg")
+    }
+
+    @Test fun `pdf share aliases the source under cacheDir share with friendly name`() = runTest {
+        val scan = oneFakeScan(pageCount = 1)
+
+        Sharing.buildShareIntent(context, scan, ShareFormat.Pdf, fakeUriProvider)
+
+        val aliasDir = File(context.cacheDir, "share/${scan.id}")
+        assertThat(aliasDir.exists()).isTrue()
+        val aliases = aliasDir.listFiles()!!.map { it.name }
+        assertThat(aliases).hasSize(1)
+        assertThat(aliases.single()).startsWith("Scan ")
+        assertThat(aliases.single()).endsWith(".pdf")
+    }
+
+    @Test fun `multi-page jpeg share creates one alias per page`() = runTest {
+        val scan = oneFakeScan(pageCount = 3)
+
+        Sharing.buildShareIntent(context, scan, ShareFormat.Jpeg, fakeUriProvider)
+
+        val aliasDir = File(context.cacheDir, "share/${scan.id}")
+        val aliases = aliasDir.listFiles()!!.map { it.name }.sorted()
+        assertThat(aliases).hasSize(3)
+        aliases.forEachIndexed { i, name ->
+            assertThat(name).endsWith(" p${i + 1}.jpg")
+        }
     }
 
     @Test fun `pdf share builds an ACTION_SEND chooser with the pdf mime type`() = runTest {

@@ -27,10 +27,11 @@ class SharingFileProviderTest {
 
     private lateinit var context: Context
     private lateinit var scanDir: File
+    private val scanId = "1779357811544-72fe645e"  // realistic <epoch>-<hex> form
 
     @Before fun setUp() {
         context = ApplicationProvider.getApplicationContext()
-        scanDir = File(context.filesDir, "scans/it-scan").apply { deleteRecursively(); mkdirs() }
+        scanDir = File(context.filesDir, "scans/$scanId").apply { deleteRecursively(); mkdirs() }
         File(context.cacheDir, "png").deleteRecursively()
     }
 
@@ -59,6 +60,20 @@ class SharingFileProviderTest {
 
         val bytes = context.contentResolver.openInputStream(streamUri)!!.use { it.readBytes() }
         assertThat(bytes).isEqualTo(Fixtures.pdfBytes())
+    }
+
+    @Test fun shareUriEndsInTheFriendlyName() = runTest {
+        val scan = oneFakeScan(pageCount = 1)
+
+        val chooser = Sharing.buildShareIntent(context, scan, ShareFormat.Pdf)
+        val inner = chooser.extras!!.get(Intent.EXTRA_INTENT) as Intent
+        val streamUri = inner.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)!!
+
+        // The chooser preview reads the URI's last path segment to show
+        // the filename — assert that's the friendly form, not "doc.pdf".
+        val lastSegment = streamUri.lastPathSegment!!
+        assertThat(lastSegment).startsWith("Scan ")
+        assertThat(lastSegment).endsWith(".pdf")
     }
 
     @Test fun pngShareUriResolvesFromCacheDir() = runTest {
