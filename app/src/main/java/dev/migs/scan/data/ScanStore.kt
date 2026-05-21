@@ -2,19 +2,23 @@ package dev.migs.scan.data
 
 import android.content.Context
 import android.net.Uri
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.time.Instant
 import java.util.UUID
 
-class ScanStore(private val context: Context) {
+class ScanStore(
+    private val context: Context,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+) {
 
     private val root: File by lazy {
         File(context.filesDir, "scans").apply { mkdirs() }
     }
 
-    suspend fun persist(payload: ScanPayload): Scan = withContext(Dispatchers.IO) {
+    suspend fun persist(payload: ScanPayload): Scan = withContext(ioDispatcher) {
         val createdAt = Instant.now()
         val id = "${createdAt.toEpochMilli()}-${UUID.randomUUID().toString().take(8)}"
         val dir = File(root, id).apply { mkdirs() }
@@ -29,14 +33,14 @@ class ScanStore(private val context: Context) {
         Scan(id = id, createdAt = createdAt, pdf = pdf, pages = pages)
     }
 
-    suspend fun loadAll(): List<Scan> = withContext(Dispatchers.IO) {
+    suspend fun loadAll(): List<Scan> = withContext(ioDispatcher) {
         root.listFiles()?.filter { it.isDirectory }
             ?.mapNotNull { dir -> loadOne(dir) }
             ?.sortedByDescending { it.createdAt }
             ?: emptyList()
     }
 
-    suspend fun delete(scan: Scan) = withContext(Dispatchers.IO) {
+    suspend fun delete(scan: Scan) = withContext(ioDispatcher) {
         scan.pdf.parentFile?.deleteRecursively()
     }
 

@@ -12,9 +12,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-class ScanViewModel(app: Application) : AndroidViewModel(app) {
+class ScanViewModel internal constructor(
+    app: Application,
+    private val store: ScanStore,
+) : AndroidViewModel(app) {
 
-    private val store = ScanStore(app)
+    constructor(app: Application) : this(app, ScanStore(app))
+
     private val _scans = MutableStateFlow<List<Scan>>(emptyList())
     val scans: StateFlow<List<Scan>> = _scans.asStateFlow()
 

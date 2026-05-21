@@ -11,28 +11,44 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 
+/** Resolves an on-disk [File] to a content URI safe to share with other apps. */
+fun interface UriProvider {
+    fun uriFor(file: File): Uri
+}
+
 object Sharing {
 
-    suspend fun buildShareIntent(context: Context, scan: Scan, format: ShareFormat): Intent =
-        withContext(Dispatchers.IO) {
-            when (format) {
-                ShareFormat.Pdf -> singleFileIntent(context, scan.pdf, format.mime)
-                ShareFormat.Jpeg -> multipleFileIntent(context, scan.pages, format.mime)
-                ShareFormat.Png -> multipleFileIntent(context, encodePages(context, scan), format.mime)
-            }
-        }
-
-    private fun singleFileIntent(context: Context, file: File, mime: String): Intent {
-        val uri = uriFor(context, file)
-        return Intent(Intent.ACTION_SEND).apply {
-            type = mime
-            putExtra(Intent.EXTRA_STREAM, uri)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }.let(::asChooser)
+    /** Default: wrap the FileProvider declared in the app manifest. */
+    fun defaultUriProvider(context: Context): UriProvider = UriProvider { file ->
+        FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            file,
+        )
     }
 
-    private fun multipleFileIntent(context: Context, files: List<File>, mime: String): Intent {
-        val uris = ArrayList(files.map { uriFor(context, it) })
+    suspend fun buildShareIntent(
+        context: Context,
+        scan: Scan,
+        format: ShareFormat,
+        uriProvider: UriProvider = defaultUriProvider(context),
+    ): Intent = withContext(Dispatchers.IO) {
+        when (format) {
+            ShareFormat.Pdf -> singleFileIntent(scan.pdf, format.mime, uriProvider)
+            ShareFormat.Jpeg -> multipleFileIntent(scan.pages, format.mime, uriProvider)
+            ShareFormat.Png -> multipleFileIntent(encodePages(context, scan), format.mime, uriProvider)
+        }
+    }
+
+    private fun singleFileIntent(file: File, mime: String, uriProvider: UriProvider): Intent =
+        Intent(Intent.ACTION_SEND).apply {
+            type = mime
+            putExtra(Intent.EXTRA_STREAM, uriProvider.uriFor(file))
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }.let(::asChooser)
+
+    private fun multipleFileIntent(files: List<File>, mime: String, uriProvider: UriProvider): Intent {
+        val uris = ArrayList(files.map(uriProvider::uriFor))
         val base = if (uris.size == 1) {
             Intent(Intent.ACTION_SEND).apply { putExtra(Intent.EXTRA_STREAM, uris[0]) }
         } else {
@@ -48,13 +64,6 @@ object Sharing {
         Intent.createChooser(intent, "Share scan").apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
-
-    private fun uriFor(context: Context, file: File): Uri =
-        FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.fileprovider",
-            file,
-        )
 
     private fun encodePages(context: Context, scan: Scan): List<File> {
         val dir = File(context.cacheDir, "png/${scan.id}").apply { mkdirs() }
