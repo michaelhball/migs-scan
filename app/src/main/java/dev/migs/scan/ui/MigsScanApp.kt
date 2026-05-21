@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Search
@@ -89,6 +90,7 @@ fun MigsScanApp(vm: ScanViewModel = viewModel()) {
     var openedScan by remember { mutableStateOf<Scan?>(null) }
     var renamingScan by remember { mutableStateOf<Scan?>(null) }
     var previewScan by remember { mutableStateOf<Scan?>(null) }
+    var editingScan by remember { mutableStateOf<Scan?>(null) }
     var query by remember { mutableStateOf("") }
     var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var confirmDeleteAll by remember { mutableStateOf(false) }
@@ -98,6 +100,15 @@ fun MigsScanApp(vm: ScanViewModel = viewModel()) {
     // Keep the previewed scan in sync if it gets renamed underneath us.
     val livePreviewScan = remember(previewScan, scans) {
         previewScan?.let { p -> scans.firstOrNull { it.id == p.id } ?: p }
+    }
+    val liveEditingScan = remember(editingScan, scans) {
+        editingScan?.let { e -> scans.firstOrNull { it.id == e.id } ?: e }
+    }
+    val launchAppendScanner = rememberDocumentScannerLauncher { result ->
+        val scanToGrow = liveEditingScan
+        if (result != null && scanToGrow != null) {
+            vm.appendPages(scanToGrow, result)
+        }
     }
     val filtered = remember(scans, query) {
         val q = query.trim()
@@ -111,7 +122,22 @@ fun MigsScanApp(vm: ScanViewModel = viewModel()) {
         if (result != null) vm.onScanResult(result)
     }
 
-    if (livePreviewScan != null) {
+    if (liveEditingScan != null) {
+        ScanPageEditor(
+            scan = liveEditingScan,
+            onClose = { editingScan = null },
+            onMovePage = { from, to ->
+                val order = liveEditingScan.pages.indices.toMutableList()
+                if (to in order.indices) {
+                    val moved = order.removeAt(from)
+                    order.add(to, moved)
+                    vm.reorderPages(liveEditingScan, order)
+                }
+            },
+            onDeletePage = { idx -> vm.deletePage(liveEditingScan, idx) },
+            onAddPages = launchAppendScanner,
+        )
+    } else if (livePreviewScan != null) {
         ScanPreview(
             scan = livePreviewScan,
             onClose = { previewScan = null },
@@ -201,6 +227,11 @@ fun MigsScanApp(vm: ScanViewModel = viewModel()) {
             onRename = {
                 openedScan = null
                 renamingScan = scan
+            },
+            onEditPages = {
+                openedScan = null
+                previewScan = null
+                editingScan = scan
             },
             onToggleStar = {
                 vm.setStarred(scan, !scan.starred)
@@ -485,6 +516,7 @@ private fun ScanActionSheet(
     onDismiss: () -> Unit,
     onShare: (ShareFormat) -> Unit,
     onRename: () -> Unit,
+    onEditPages: () -> Unit,
     onToggleStar: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -532,6 +564,11 @@ private fun ScanActionSheet(
                 icon = Icons.Filled.DriveFileRenameOutline,
                 label = "Rename",
                 onClick = onRename,
+            )
+            SheetAction(
+                icon = Icons.Filled.Edit,
+                label = "Edit pages",
+                onClick = onEditPages,
             )
             SheetAction(
                 icon = Icons.Filled.Delete,

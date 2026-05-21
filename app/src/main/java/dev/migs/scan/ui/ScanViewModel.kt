@@ -7,6 +7,7 @@ import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
 import dev.migs.scan.data.Scan
 import dev.migs.scan.data.ScanPayload
 import dev.migs.scan.data.ScanStore
+import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult as MlKitResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -68,6 +69,27 @@ class ScanViewModel internal constructor(
             val updated = store.setStarred(scan, starred)
             _scans.value = _scans.value.map { if (it.id == scan.id) updated else it }
                 .resort()
+        }
+    }
+
+    fun reorderPages(scan: Scan, newOrder: List<Int>) {
+        viewModelScope.launch {
+            val updated = store.reorderPages(scan, newOrder)
+            _scans.value = _scans.value.map { if (it.id == scan.id) updated else it }
+        }
+    }
+
+    fun deletePage(scan: Scan, pageIndex: Int) {
+        viewModelScope.launch {
+            val updated = store.deletePage(scan, pageIndex)
+            _scans.value = _scans.value.map { if (it.id == scan.id) updated else it }
+        }
+    }
+
+    fun appendPages(scan: Scan, result: MlKitResult) {
+        viewModelScope.launch {
+            val updated = store.appendPages(scan, ScanPayload.fromMlKit(result))
+            _scans.value = _scans.value.map { if (it.id == scan.id) updated else it }
         }
     }
 

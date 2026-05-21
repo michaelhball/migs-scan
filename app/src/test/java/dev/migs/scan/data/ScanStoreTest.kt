@@ -207,6 +207,88 @@ class ScanStoreTest {
         assertThat(loaded.name).startsWith("Scan ")
     }
 
+    @Test fun `reorderPages swaps the on-disk filenames and rebuilds the PDF`() = runTest {
+        val ocrStore = ScanStore(
+            context,
+            textExtractor = TextExtractor { f ->
+                "OCR ${f.name.substringAfter("page-").substringBefore('.')}"
+            },
+            pdfBuilder = { pages, out -> out.writeText("pdf with ${pages.size} pages") },
+        )
+        val multi = ScanPayload(
+            pdf = Fixtures.fileUri(sourceDir, "src.pdf", Fixtures.pdfBytes()),
+            pages = listOf(
+                Fixtures.fileUri(sourceDir, "a.jpg", Fixtures.jpegBytes(android.graphics.Color.RED)),
+                Fixtures.fileUri(sourceDir, "b.jpg", Fixtures.jpegBytes(android.graphics.Color.GREEN)),
+                Fixtures.fileUri(sourceDir, "c.jpg", Fixtures.jpegBytes(android.graphics.Color.BLUE)),
+            ),
+        )
+        val scan = ocrStore.persist(multi)
+        val initialPdfMtime = scan.pdf.lastModified()
+        Thread.sleep(20)
+
+        val reordered = ocrStore.reorderPages(scan, listOf(2, 0, 1))
+
+        // The Scan now points at page-1/2/3 in the new order; the per-page text
+        // moved with the page so the joined text reflects the new order.
+        assertThat(reordered.pages.map { it.name })
+            .containsExactly("page-1.jpg", "page-2.jpg", "page-3.jpg").inOrder()
+        assertThat(reordered.text).isEqualTo("OCR 3\n\nOCR 1\n\nOCR 2")
+        assertThat(reordered.pdf.lastModified()).isGreaterThan(initialPdfMtime)
+    }
+
+    @Test fun `deletePage removes the page and renumbers what's left`() = runTest {
+        val ocrStore = ScanStore(
+            context,
+            textExtractor = TextExtractor { f ->
+                "OCR ${f.name.substringAfter("page-").substringBefore('.')}"
+            },
+            pdfBuilder = { pages, out -> out.writeText("pdf with ${pages.size} pages") },
+        )
+        val multi = ScanPayload(
+            pdf = Fixtures.fileUri(sourceDir, "src.pdf", Fixtures.pdfBytes()),
+            pages = (1..3).map { i -> Fixtures.fileUri(sourceDir, "p$i.jpg", Fixtures.jpegBytes()) },
+        )
+        val scan = ocrStore.persist(multi)
+
+        val edited = ocrStore.deletePage(scan, pageIndex = 1)  // drop page-2
+
+        assertThat(edited.pages.map { it.name })
+            .containsExactly("page-1.jpg", "page-2.jpg").inOrder()
+        assertThat(edited.text).isEqualTo("OCR 1\n\nOCR 3")
+    }
+
+    @Test fun `deletePage rejects deleting the only page`() = runTest {
+        val scan = store.persist(payload())
+        try {
+            store.deletePage(scan, 0)
+            error("expected IllegalArgumentException")
+        } catch (expected: IllegalArgumentException) {
+            assertThat(expected).hasMessageThat().contains("only page")
+        }
+    }
+
+    @Test fun `appendPages adds OCR for the new pages and keeps existing text`() = runTest {
+        val ocrStore = ScanStore(
+            context,
+            textExtractor = TextExtractor { f ->
+                // Existing pages got their OCR at persist time; only new pages will hit this.
+                if (f.name.startsWith("stage-new-")) "NEW PAGE" else "ORIGINAL"
+            },
+            pdfBuilder = { pages, out -> out.writeText("pdf with ${pages.size} pages") },
+        )
+        val scan = ocrStore.persist(payload())
+
+        val appendedPayload = ScanPayload(
+            pdf = null,  // unused for appendPages
+            pages = listOf(Fixtures.fileUri(sourceDir, "extra.jpg", Fixtures.jpegBytes())),
+        )
+        val grown = ocrStore.appendPages(scan, appendedPayload)
+
+        assertThat(grown.pages).hasSize(2)
+        assertThat(grown.text).isEqualTo("ORIGINAL\n\nNEW PAGE")
+    }
+
     @Test fun `persist with no pdf throws`() = runTest {
         try {
             store.persist(ScanPayload(pdf = null, pages = emptyList()))

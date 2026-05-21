@@ -3,6 +3,7 @@ package dev.migs.scan.ui
 import android.app.Application
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -194,6 +195,56 @@ class MigsScanAppUiTest {
         runBlocking {
             assertThat(store.loadAll().map { it.name }).containsExactly("Permits")
         }
+    }
+
+    @Test fun pageEditorReordersAndDeletesPages() {
+        // Multi-page scan with deterministic per-page OCR so we can read back the
+        // joined text and verify the reorder/delete really moved the pages.
+        val pagedStore = ScanStore(
+            app,
+            Dispatchers.Unconfined,
+            TextExtractor { f -> "OCR ${f.name.substringAfter("page-").substringBefore('.')}" },
+            pdfBuilder = { pages, out -> out.writeText("pdf:${pages.size}") },
+        )
+        val scan = runBlocking {
+            pagedStore.persist(
+                ScanPayload(
+                    pdf = Fixtures.fileUri(sourceDir, "src.pdf", Fixtures.pdfBytes()),
+                    pages = (1..3).map { Fixtures.fileUri(sourceDir, "p$it.jpg", Fixtures.jpegBytes()) },
+                ),
+            ).also { pagedStore.rename(it, "Multi") }
+        }
+
+        composeRule.setContent {
+            MigsScanTheme { MigsScanApp(vm = ScanViewModel(app, pagedStore)) }
+        }
+        composeRule.waitForIdle()
+
+        // Tap the row → preview → kebab → action sheet → "Edit pages".
+        composeRule.onNodeWithText("Multi").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithContentDescription("More actions").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Edit pages").performClick()
+        composeRule.waitForIdle()
+
+        // Move "Page 1" down: tap its Move-down button (first row's down arrow).
+        composeRule.onAllNodesWithContentDescription("Move down").fetchSemanticsNodes().also {
+            assertThat(it).isNotEmpty()
+        }
+        composeRule.onAllNodesWithContentDescription("Move down")[0].performClick()
+        composeRule.waitForIdle()
+
+        // Delete what is now "Page 1" (the original page-2).
+        composeRule.onAllNodesWithContentDescription("Delete page")[0].performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Delete").performClick()
+        composeRule.waitForIdle()
+
+        // On disk: only 2 pages remain (the original p1 + p3 in that order).
+        val reloaded = runBlocking { pagedStore.loadAll().single { it.id == scan.id } }
+        assertThat(reloaded.pages).hasSize(2)
+        assertThat(reloaded.text).isEqualTo("OCR 1\n\nOCR 3")
     }
 
     @Test fun searchAlsoMatchesOcrText() {
