@@ -47,6 +47,9 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // Lets us call java.time / java.nio.file / java.util.stream on
+        // API 24-25 devices, where those classes don't exist natively.
+        isCoreLibraryDesugaringEnabled = true
     }
 
     buildFeatures {
@@ -72,6 +75,8 @@ dependencies {
 
     implementation(libs.mlkit.document.scanner)
     implementation(libs.play.services.base)
+
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
 
     // Local (JVM + Robolectric) tests.
     testImplementation(libs.junit)
