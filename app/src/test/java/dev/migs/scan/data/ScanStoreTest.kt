@@ -127,6 +127,38 @@ class ScanStoreTest {
         assertThat(loaded.name).isEqualTo("Passport")
     }
 
+    @Test fun `setStarred true creates marker file and reflects on Scan`() = runTest {
+        val scan = store.persist(payload())
+        assertThat(scan.starred).isFalse()
+
+        val starred = store.setStarred(scan, true)
+
+        assertThat(starred.starred).isTrue()
+        assertThat(File(scan.pdf.parentFile, "starred").exists()).isTrue()
+    }
+
+    @Test fun `setStarred false removes marker file`() = runTest {
+        val scan = store.persist(payload())
+        store.setStarred(scan, true)
+
+        val unstarred = store.setStarred(scan, false)
+
+        assertThat(unstarred.starred).isFalse()
+        assertThat(File(scan.pdf.parentFile, "starred").exists()).isFalse()
+    }
+
+    @Test fun `loadAll pins starred scans to the top regardless of date`() = runTest {
+        val older = store.persist(payload(name = "old"))
+        Thread.sleep(2)
+        val newer = store.persist(payload(name = "new"))
+        store.setStarred(older, true)
+
+        val loaded = store.loadAll()
+
+        // Starred (older) first, then unstarred newer.
+        assertThat(loaded.map { it.id }).containsExactly(older.id, newer.id).inOrder()
+    }
+
     @Test fun `loadAll falls back to default name when name file is missing`() = runTest {
         val scan = store.persist(payload())
         File(scan.pdf.parentFile, "name.txt").delete()

@@ -10,4 +10,6 @@ data class Scan(
     val createdAt: Instant,
     val pdf: File,
     val pages: List<File>,
+    /** Starred scans pin to the top of the list. */
+    val starred: Boolean = false,
 )

@@ -24,6 +24,8 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -132,6 +134,7 @@ fun MigsScanApp(vm: ScanViewModel = viewModel()) {
                         padding = padding,
                         onOpenPreview = { previewScan = it },
                         onOpenActions = { openedScan = it },
+                        onToggleStar = { vm.setStarred(it, !it.starred) },
                     )
                 }
             }
@@ -152,6 +155,10 @@ fun MigsScanApp(vm: ScanViewModel = viewModel()) {
             onRename = {
                 openedScan = null
                 renamingScan = scan
+            },
+            onToggleStar = {
+                vm.setStarred(scan, !scan.starred)
+                openedScan = null
             },
             onDelete = {
                 vm.delete(scan)
@@ -203,6 +210,7 @@ private fun ScanListWithSearch(
     padding: PaddingValues,
     onOpenPreview: (Scan) -> Unit,
     onOpenActions: (Scan) -> Unit,
+    onToggleStar: (Scan) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -259,6 +267,7 @@ private fun ScanListWithSearch(
                         scan = scan,
                         onClick = { onOpenPreview(scan) },
                         onShareClick = { onOpenActions(scan) },
+                        onStarClick = { onToggleStar(scan) },
                     )
                 }
             }
@@ -270,7 +279,12 @@ private val rowDateFormat = DateTimeFormatter.ofPattern("MMM d, yyyy · HH:mm")
     .withZone(ZoneId.systemDefault())
 
 @Composable
-private fun ScanRow(scan: Scan, onClick: () -> Unit, onShareClick: () -> Unit) {
+private fun ScanRow(
+    scan: Scan,
+    onClick: () -> Unit,
+    onShareClick: () -> Unit,
+    onStarClick: () -> Unit,
+) {
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -289,6 +303,20 @@ private fun ScanRow(scan: Scan, onClick: () -> Unit, onShareClick: () -> Unit) {
                     text = "${scan.pages.size} page${if (scan.pages.size == 1) "" else "s"} · ${rowDateFormat.format(scan.createdAt)}",
                     style = MaterialTheme.typography.bodySmall,
                 )
+            }
+            IconButton(onClick = onStarClick) {
+                if (scan.starred) {
+                    Icon(
+                        imageVector = Icons.Filled.Star,
+                        contentDescription = "Unstar",
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Outlined.StarOutline,
+                        contentDescription = "Star",
+                    )
+                }
             }
             IconButton(onClick = onShareClick) {
                 Icon(Icons.Filled.Share, contentDescription = "Share")
@@ -330,6 +358,7 @@ private fun ScanActionSheet(
     onDismiss: () -> Unit,
     onShare: (ShareFormat) -> Unit,
     onRename: () -> Unit,
+    onToggleStar: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -367,6 +396,11 @@ private fun ScanActionSheet(
                 onClick = { onShare(ShareFormat.Png) },
             )
             HorizontalDivider()
+            SheetAction(
+                icon = if (scan.starred) Icons.Filled.Star else Icons.Outlined.StarOutline,
+                label = if (scan.starred) "Unstar" else "Star",
+                onClick = onToggleStar,
+            )
             SheetAction(
                 icon = Icons.Filled.DriveFileRenameOutline,
                 label = "Rename",

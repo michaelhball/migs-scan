@@ -35,13 +35,14 @@ class ScanStore(
         val name = defaultName(createdAt)
         File(dir, NameFile).writeText(name)
 
-        Scan(id = id, name = name, createdAt = createdAt, pdf = pdf, pages = pages)
+        Scan(id = id, name = name, createdAt = createdAt, pdf = pdf, pages = pages, starred = false)
     }
 
     suspend fun loadAll(): List<Scan> = withContext(ioDispatcher) {
         root.listFiles()?.filter { it.isDirectory }
             ?.mapNotNull { dir -> loadOne(dir) }
-            ?.sortedByDescending { it.createdAt }
+            // Starred scans pin to the top; within each group, newest first.
+            ?.sortedWith(compareByDescending<Scan> { it.starred }.thenByDescending { it.createdAt })
             ?: emptyList()
     }
 
@@ -53,6 +54,12 @@ class ScanStore(
         val trimmed = newName.trim().ifEmpty { defaultName(scan.createdAt) }
         File(scan.pdf.parentFile, NameFile).writeText(trimmed)
         scan.copy(name = trimmed)
+    }
+
+    suspend fun setStarred(scan: Scan, starred: Boolean): Scan = withContext(ioDispatcher) {
+        val marker = File(scan.pdf.parentFile, StarredFile)
+        if (starred) marker.createNewFile() else marker.delete()
+        scan.copy(starred = starred)
     }
 
     private fun loadOne(dir: File): Scan? {
@@ -69,7 +76,15 @@ class ScanStore(
         val name = File(dir, NameFile).takeIf { it.exists() }?.readText()?.trim()
             ?.takeIf { it.isNotEmpty() }
             ?: defaultName(createdAt)
-        return Scan(id = dir.name, name = name, createdAt = createdAt, pdf = pdf, pages = pages)
+        val starred = File(dir, StarredFile).exists()
+        return Scan(
+            id = dir.name,
+            name = name,
+            createdAt = createdAt,
+            pdf = pdf,
+            pages = pages,
+            starred = starred,
+        )
     }
 
     private fun copyFromUri(uri: Uri, target: File) {
@@ -81,6 +96,7 @@ class ScanStore(
 
     companion object {
         private const val NameFile = "name.txt"
+        private const val StarredFile = "starred"
         private val DefaultNameFormat: DateTimeFormatter =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HHmm").withZone(ZoneId.systemDefault())
 

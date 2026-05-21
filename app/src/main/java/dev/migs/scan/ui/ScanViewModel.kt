@@ -35,7 +35,7 @@ class ScanViewModel internal constructor(
     internal fun onPayload(payload: ScanPayload) {
         viewModelScope.launch {
             val scan = store.persist(payload)
-            _scans.value = listOf(scan) + _scans.value
+            _scans.value = (listOf(scan) + _scans.value).resort()
         }
     }
 
@@ -50,6 +50,18 @@ class ScanViewModel internal constructor(
         viewModelScope.launch {
             val renamed = store.rename(scan, newName)
             _scans.value = _scans.value.map { if (it.id == scan.id) renamed else it }
+                .resort()
         }
     }
+
+    fun setStarred(scan: Scan, starred: Boolean) {
+        viewModelScope.launch {
+            val updated = store.setStarred(scan, starred)
+            _scans.value = _scans.value.map { if (it.id == scan.id) updated else it }
+                .resort()
+        }
+    }
+
+    private fun List<Scan>.resort(): List<Scan> =
+        sortedWith(compareByDescending<Scan> { it.starred }.thenByDescending { it.createdAt })
 }
