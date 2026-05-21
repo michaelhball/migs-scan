@@ -1,7 +1,9 @@
 package dev.migs.scan.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -41,6 +43,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -242,9 +251,11 @@ private val rowDateFormat = DateTimeFormatter.ofPattern("MMM d, yyyy · HH:mm")
 private fun ScanRow(scan: Scan, onClick: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            ScanThumbnail(scan)
+            Spacer(Modifier.size(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = scan.name,
@@ -260,6 +271,32 @@ private fun ScanRow(scan: Scan, onClick: () -> Unit) {
             IconButton(onClick = onClick) {
                 Icon(Icons.Filled.Share, contentDescription = "Share")
             }
+        }
+    }
+}
+
+@Composable
+private fun ScanThumbnail(scan: Scan, size: androidx.compose.ui.unit.Dp = 56.dp) {
+    val firstPage = scan.pages.firstOrNull()
+    val shape = RoundedCornerShape(6.dp)
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(shape)
+            // Subtle backdrop so blank/missing scans don't look like a layout hole.
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        if (firstPage != null) {
+            val context = LocalContext.current
+            AsyncImage(
+                model = ImageRequest.Builder(context)
+                    .data(firstPage)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
         }
     }
 }

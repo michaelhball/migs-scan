@@ -10,6 +10,7 @@ mlkit-doc-scanner = "16.0.0"
 splashscreen = "1.0.1"
 play-services-base = "18.5.0"
 desugar-jdk-libs = "2.1.4"
+coil = "3.0.4"
 
 # Test
 junit = "4.13.2"
@@ -41,6 +42,7 @@ compose-material-icons = { module = "androidx.compose.material:material-icons-ex
 mlkit-document-scanner = { module = "com.google.android.gms:play-services-mlkit-document-scanner", version.ref = "mlkit-doc-scanner" }
 play-services-base = { module = "com.google.android.gms:play-services-base", version.ref = "play-services-base" }
 desugar-jdk-libs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugar-jdk-libs" }
+coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 
 # Test
 junit = { module = "junit:junit", version.ref = "junit" }

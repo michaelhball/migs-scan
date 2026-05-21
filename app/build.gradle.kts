@@ -88,6 +88,7 @@ dependencies {
 
     implementation(libs.mlkit.document.scanner)
     implementation(libs.play.services.base)
+    implementation(libs.coil.compose)
 
     coreLibraryDesugaring(libs.desugar.jdk.libs)
 
