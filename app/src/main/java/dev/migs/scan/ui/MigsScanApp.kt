@@ -550,17 +550,37 @@ private fun RenameDialog(
     onDismiss: () -> Unit,
 ) {
     var text by remember(scan.id) { mutableStateOf(scan.name) }
+    val suggestion = remember(scan.id, text) { suggestedNameFromOcr(scan.text, text) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Rename scan") },
         text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
-                singleLine = true,
-                label = { Text("Name") },
-                modifier = Modifier.fillMaxWidth(),
-            )
+            Column {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    singleLine = true,
+                    label = { Text("Name") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (suggestion != null) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "From scan: ",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    TextButton(
+                        onClick = { text = suggestion },
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 0.dp),
+                    ) {
+                        Text(
+                            text = "“$suggestion”",
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 1,
+                        )
+                    }
+                }
+            }
         },
         confirmButton = {
             TextButton(onClick = { onConfirm(text) }) { Text("Save") }
