@@ -17,13 +17,24 @@ is just a thin wrapper around it: launch the scanner, save the result, share.
 - Share each scan as **PDF**, **JPEG**, or **PNG** via the standard Android
   share sheet (Gmail, Drive, Messages, AirDrop-equivalents, anything) — with
   real thumbnails of the scan in the chooser preview
-- **Rename** any scan from the action sheet — the new name is what Gmail,
-  Drive, etc. see as the file's name when you share it
-- **Search** the scan list by name from the bar at the top
+- **Quick-send presets** — register tiles like "Email to dad" or "Send to
+  WhatsApp" that skip the OS chooser and pre-fill recipients
+- **Rename** any scan — the new name is what Gmail, Drive etc. see as the
+  attached file's name
+- **OCR text search** — extracted text from every page is indexed, so the
+  search bar finds scans by their content even if you never renamed them
+- **Auto-suggested names from OCR** — the rename dialog offers the first
+  meaningful line on page 1 as a one-tap suggestion
 - **Star** scans to pin them to the top of the list
-- **Tap a row** to open a full-screen preview with a horizontal pager
-  through every page
+- **Tap a row** for a full-screen preview with pinch-to-zoom + horizontal
+  swipe through every page
+- **Edit pages** within a scan — reorder, delete a page, or append new ones
 - **Long-press a row** to enter selection mode and bulk-delete several scans
+- **Settings**: choose between the full ML Kit editor and a one-snap quick
+  capture, set a default share format
+- **Backup to any folder** via Android's Storage Access Framework — works
+  with Google Drive, Dropbox, OneDrive, local storage, USB; the user picks
+  once, the app mirrors scans there
 - Thumbnails of the first page on every row
 - Scans persist between launches on local storage
 - Adaptive launcher icon, branded splash, light + dark mode
@@ -31,8 +42,9 @@ is just a thin wrapper around it: launch the scanner, save the result, share.
 ## Not (yet) in the app
 
 - Folders / tags
-- Settings screen
-- Cloud sync — by design, this is a local-only app
+- Cloud sync handled directly by the app (use SAF backup to a Drive folder
+  instead — same effect, no provider lock-in)
+- Auto-scheduled backup (WorkManager) — backup is manual-trigger for now
 
 ## Requirements
 
