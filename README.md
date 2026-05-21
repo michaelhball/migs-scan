@@ -15,20 +15,22 @@ is just a thin wrapper around it: launch the scanner, save the result, share.
 - Automatic edge detection and perspective correction
 - Import existing photos from the gallery instead of capturing live
 - Share each scan as **PDF**, **JPEG**, or **PNG** via the standard Android
-  share sheet (Gmail, Drive, Messages, AirDrop-equivalents, anything)
+  share sheet (Gmail, Drive, Messages, AirDrop-equivalents, anything) — with
+  real thumbnails of the scan in the chooser preview
 - **Rename** any scan from the action sheet — the new name is what Gmail,
   Drive, etc. see as the file's name when you share it
 - **Search** the scan list by name from the bar at the top
-- Scans persist between launches on local storage; delete from a long-press
-  sheet when you're done with them
+- **Star** scans to pin them to the top of the list
+- **Tap a row** to open a full-screen preview with a horizontal pager
+  through every page
+- **Long-press a row** to enter selection mode and bulk-delete several scans
+- Thumbnails of the first page on every row
+- Scans persist between launches on local storage
 - Adaptive launcher icon, branded splash, light + dark mode
 
 ## Not (yet) in the app
 
-- Thumbnails in the scan list — rows are text-only for now
-- Tap a scan to preview pages in-app — sharing, renaming, or deleting are
-  the actions today
-- Star scans, bulk delete, folders / tags
+- Folders / tags
 - Settings screen
 - Cloud sync — by design, this is a local-only app
 
