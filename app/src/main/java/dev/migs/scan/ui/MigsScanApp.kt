@@ -76,6 +76,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.migs.scan.data.Scan
+import dev.migs.scan.settings.Preset
 import dev.migs.scan.settings.SettingsScreen
 import dev.migs.scan.settings.SettingsViewModel
 import dev.migs.scan.share.ShareFormat
@@ -238,11 +239,24 @@ fun MigsScanApp(
     openedScan?.let { scan ->
         ScanActionSheet(
             scan = scan,
+            presets = settings.presets,
             onDismiss = { openedScan = null },
             onShare = { format ->
                 scope.launch {
                     val intent = Sharing.buildShareIntent(context, scan, format)
                     context.startActivity(intent)
+                    openedScan = null
+                }
+            },
+            onUsePreset = { preset ->
+                scope.launch {
+                    val intent = Sharing.buildPresetIntent(context, scan, preset)
+                    try {
+                        context.startActivity(intent)
+                    } catch (_: android.content.ActivityNotFoundException) {
+                        // Target app vanished — fall back to the chooser.
+                        context.startActivity(Sharing.buildShareIntent(context, scan, preset.format))
+                    }
                     openedScan = null
                 }
             },
@@ -535,8 +549,10 @@ private fun ScanThumbnail(scan: Scan, size: androidx.compose.ui.unit.Dp = 56.dp)
 @Composable
 private fun ScanActionSheet(
     scan: Scan,
+    presets: List<Preset>,
     onDismiss: () -> Unit,
     onShare: (ShareFormat) -> Unit,
+    onUsePreset: (Preset) -> Unit,
     onRename: () -> Unit,
     onEditPages: () -> Unit,
     onToggleStar: () -> Unit,
@@ -561,6 +577,16 @@ private fun ScanActionSheet(
                 )
             }
             HorizontalDivider()
+            if (presets.isNotEmpty()) {
+                presets.forEach { preset ->
+                    SheetAction(
+                        icon = Icons.Filled.Share,
+                        label = preset.label,
+                        onClick = { onUsePreset(preset) },
+                    )
+                }
+                HorizontalDivider()
+            }
             SheetAction(
                 icon = Icons.Filled.PictureAsPdf,
                 label = "Share as PDF",

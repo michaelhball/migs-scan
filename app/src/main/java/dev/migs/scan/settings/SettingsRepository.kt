@@ -22,6 +22,7 @@ class SettingsRepository(context: Context) {
                 ?: ScannerUi.Full,
             defaultShareFormat = prefs[KeyDefaultShareFormat]
                 ?.let { runCatching { ShareFormat.valueOf(it) }.getOrNull() },
+            presets = prefs[KeyPresets]?.let(::decodePresets).orEmpty(),
         )
     }
 
@@ -36,8 +37,58 @@ class SettingsRepository(context: Context) {
         }
     }
 
+    suspend fun addPreset(preset: Preset) {
+        store.edit { prefs ->
+            val current = prefs[KeyPresets]?.let(::decodePresets).orEmpty()
+            prefs[KeyPresets] = encodePresets(current + preset)
+        }
+    }
+
+    suspend fun removePreset(presetId: String) {
+        store.edit { prefs ->
+            val current = prefs[KeyPresets]?.let(::decodePresets).orEmpty()
+            prefs[KeyPresets] = encodePresets(current.filterNot { it.id == presetId })
+        }
+    }
+
     companion object {
         private val KeyScannerUi = stringPreferencesKey("scanner_ui")
         private val KeyDefaultShareFormat = stringPreferencesKey("default_share_format")
+        private val KeyPresets = stringPreferencesKey("presets")
+
+        // One preset per line. Fields tab-separated, in fixed order:
+        //   id<TAB>label<TAB>format<TAB>packageName<TAB>emails-comma-separated
+        // packageName empty = null. emails empty = no recipients. label fields
+        // sanitised to strip TAB / NEWLINE.
+        internal fun encodePresets(presets: List<Preset>): String =
+            presets.joinToString("\n") { p ->
+                listOf(
+                    p.id,
+                    p.label.sanitise(),
+                    p.format.name,
+                    (p.packageName ?: "").sanitise(),
+                    p.emails.joinToString(",") { it.sanitise() },
+                ).joinToString("\t")
+            }
+
+        internal fun decodePresets(encoded: String): List<Preset> =
+            encoded.lineSequence()
+                .filter { it.isNotBlank() }
+                .mapNotNull { line ->
+                    val parts = line.split('\t')
+                    if (parts.size < 5) return@mapNotNull null
+                    val format = runCatching { ShareFormat.valueOf(parts[2]) }.getOrNull()
+                        ?: return@mapNotNull null
+                    Preset(
+                        id = parts[0],
+                        label = parts[1],
+                        format = format,
+                        packageName = parts[3].ifEmpty { null },
+                        emails = parts[4].split(',').filter { it.isNotBlank() },
+                    )
+                }
+                .toList()
+
+        private fun String.sanitise(): String = this.replace('\t', ' ').replace('\n', ' ')
     }
 }

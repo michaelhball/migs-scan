@@ -6,6 +6,7 @@ data class Settings(
     val scannerUi: ScannerUi = ScannerUi.Full,
     /** Null means "ask each time" (open the action sheet). */
     val defaultShareFormat: ShareFormat? = null,
+    val presets: List<Preset> = emptyList(),
 )
 
 /**

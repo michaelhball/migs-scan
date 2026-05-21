@@ -43,6 +43,41 @@ object Sharing {
         chooserIntent(aliases, mime, uriProvider)
     }
 
+    /**
+     * Builds an Intent for a quick-send preset: bypasses the chooser by
+     * setting the target package, optionally pre-fills email recipients.
+     * Callers should still wrap in [Intent.createChooser] if the preset's
+     * packageName turns out to be invalid (handled below by callers).
+     */
+    suspend fun buildPresetIntent(
+        context: Context,
+        scan: Scan,
+        preset: dev.migs.scan.settings.Preset,
+        uriProvider: UriProvider = defaultUriProvider(context),
+    ): Intent = withContext(Dispatchers.IO) {
+        val (files, mime) = sourcesFor(context, scan, preset.format)
+        val aliases = files.mapIndexed { i, src ->
+            alias(context, scan, src, friendlyName(scan, preset.format, i, files.size))
+        }
+        val uris = ArrayList(aliases.map(uriProvider::uriFor))
+        val base = if (uris.size == 1) {
+            Intent(Intent.ACTION_SEND).apply { putExtra(Intent.EXTRA_STREAM, uris[0]) }
+        } else {
+            Intent(Intent.ACTION_SEND_MULTIPLE).apply { putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris) }
+        }
+        base.apply {
+            type = mime
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            preset.packageName?.let { setPackage(it) }
+            if (preset.emails.isNotEmpty()) {
+                putExtra(Intent.EXTRA_EMAIL, preset.emails.toTypedArray())
+            }
+            // Default subject for email apps; falls back gracefully elsewhere.
+            putExtra(Intent.EXTRA_SUBJECT, scan.name)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+    }
+
     private fun sourcesFor(context: Context, scan: Scan, format: ShareFormat): Pair<List<File>, String> =
         when (format) {
             ShareFormat.Pdf -> listOf(scan.pdf) to format.mime

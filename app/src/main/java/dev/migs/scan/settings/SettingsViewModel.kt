@@ -29,4 +29,12 @@ class SettingsViewModel internal constructor(
     fun setDefaultShareFormat(format: ShareFormat?) {
         viewModelScope.launch { repo.setDefaultShareFormat(format) }
     }
+
+    fun addPreset(preset: Preset) {
+        viewModelScope.launch { repo.addPreset(preset) }
+    }
+
+    fun removePreset(presetId: String) {
+        viewModelScope.launch { repo.removePreset(presetId) }
+    }
 }
