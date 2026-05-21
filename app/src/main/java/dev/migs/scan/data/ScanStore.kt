@@ -2,7 +2,6 @@ package dev.migs.scan.data
 
 import android.content.Context
 import android.net.Uri
-import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -15,17 +14,16 @@ class ScanStore(private val context: Context) {
         File(context.filesDir, "scans").apply { mkdirs() }
     }
 
-    suspend fun persist(result: GmsDocumentScanningResult): Scan = withContext(Dispatchers.IO) {
+    suspend fun persist(payload: ScanPayload): Scan = withContext(Dispatchers.IO) {
         val createdAt = Instant.now()
         val id = "${createdAt.toEpochMilli()}-${UUID.randomUUID().toString().take(8)}"
         val dir = File(root, id).apply { mkdirs() }
 
-        val pdfUri = result.pdf?.uri
-            ?: error("Document scanner returned no PDF")
+        val pdfUri = payload.pdf ?: error("ScanPayload has no PDF")
         val pdf = File(dir, "doc.pdf").also { copyFromUri(pdfUri, it) }
 
-        val pages = result.pages.orEmpty().mapIndexed { index, page ->
-            File(dir, "page-${index + 1}.jpg").also { copyFromUri(page.imageUri, it) }
+        val pages = payload.pages.mapIndexed { index, uri ->
+            File(dir, "page-${index + 1}.jpg").also { copyFromUri(uri, it) }
         }
 
         Scan(id = id, createdAt = createdAt, pdf = pdf, pages = pages)

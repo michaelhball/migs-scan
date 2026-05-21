@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
 import dev.migs.scan.data.Scan
+import dev.migs.scan.data.ScanPayload
 import dev.migs.scan.data.ScanStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,8 +25,12 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun onScanResult(result: GmsDocumentScanningResult) {
+        onPayload(ScanPayload.fromMlKit(result))
+    }
+
+    internal fun onPayload(payload: ScanPayload) {
         viewModelScope.launch {
-            val scan = store.persist(result)
+            val scan = store.persist(payload)
             _scans.value = listOf(scan) + _scans.value
         }
     }
