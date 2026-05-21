@@ -7,6 +7,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.UUID
 
 class ScanStore(
@@ -30,7 +32,10 @@ class ScanStore(
             File(dir, "page-${index + 1}.jpg").also { copyFromUri(uri, it) }
         }
 
-        Scan(id = id, createdAt = createdAt, pdf = pdf, pages = pages)
+        val name = defaultName(createdAt)
+        File(dir, NameFile).writeText(name)
+
+        Scan(id = id, name = name, createdAt = createdAt, pdf = pdf, pages = pages)
     }
 
     suspend fun loadAll(): List<Scan> = withContext(ioDispatcher) {
@@ -44,6 +49,12 @@ class ScanStore(
         scan.pdf.parentFile?.deleteRecursively()
     }
 
+    suspend fun rename(scan: Scan, newName: String): Scan = withContext(ioDispatcher) {
+        val trimmed = newName.trim().ifEmpty { defaultName(scan.createdAt) }
+        File(scan.pdf.parentFile, NameFile).writeText(trimmed)
+        scan.copy(name = trimmed)
+    }
+
     private fun loadOne(dir: File): Scan? {
         val pdf = File(dir, "doc.pdf").takeIf { it.exists() } ?: return null
         // The id prefix is the epoch millis the scan was saved at — recover
@@ -55,7 +66,10 @@ class ScanStore(
             ?.sortedBy { it.name }
             ?.toList()
             .orEmpty()
-        return Scan(id = dir.name, createdAt = createdAt, pdf = pdf, pages = pages)
+        val name = File(dir, NameFile).takeIf { it.exists() }?.readText()?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?: defaultName(createdAt)
+        return Scan(id = dir.name, name = name, createdAt = createdAt, pdf = pdf, pages = pages)
     }
 
     private fun copyFromUri(uri: Uri, target: File) {
@@ -63,5 +77,13 @@ class ScanStore(
             requireNotNull(input) { "Could not open $uri" }
             target.outputStream().use { output -> input.copyTo(output) }
         }
+    }
+
+    companion object {
+        private const val NameFile = "name.txt"
+        private val DefaultNameFormat: DateTimeFormatter =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HHmm").withZone(ZoneId.systemDefault())
+
+        internal fun defaultName(createdAt: Instant): String = "Scan ${DefaultNameFormat.format(createdAt)}"
     }
 }

@@ -96,6 +96,6 @@ class SharingFileProviderTest {
         val pages = (1..pageCount).map { i ->
             File(scanDir, "page-$i.jpg").apply { writeBytes(Fixtures.jpegBytes()) }
         }
-        return Scan(id = scanDir.name, createdAt = Instant.now(), pdf = pdf, pages = pages)
+        return Scan(id = scanDir.name, name = "Test scan", createdAt = Instant.now(), pdf = pdf, pages = pages)
     }
 }

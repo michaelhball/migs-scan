@@ -157,6 +157,7 @@ class SharingTest {
         }
         return Scan(
             id = scanDir.name,
+            name = "Test scan",
             createdAt = Instant.now(),
             pdf = pdf,
             pages = pages,

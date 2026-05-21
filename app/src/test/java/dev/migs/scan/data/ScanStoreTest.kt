@@ -91,6 +91,51 @@ class ScanStoreTest {
         assertThat(store.loadAll()).isEmpty()
     }
 
+    @Test fun `persist assigns a default name based on createdAt`() = runTest {
+        val scan = store.persist(payload())
+
+        assertThat(scan.name).startsWith("Scan ")
+        assertThat(File(scan.pdf.parentFile, "name.txt").readText()).isEqualTo(scan.name)
+    }
+
+    @Test fun `rename updates name on disk and returns updated Scan`() = runTest {
+        val scan = store.persist(payload())
+
+        val renamed = store.rename(scan, "Tax return 2024")
+
+        assertThat(renamed.name).isEqualTo("Tax return 2024")
+        assertThat(File(scan.pdf.parentFile, "name.txt").readText()).isEqualTo("Tax return 2024")
+        // Reloading from disk picks up the new name.
+        assertThat(store.loadAll().single().name).isEqualTo("Tax return 2024")
+    }
+
+    @Test fun `rename to blank or whitespace falls back to the default name`() = runTest {
+        val scan = store.persist(payload())
+        store.rename(scan, "Something")
+
+        val reverted = store.rename(scan, "   ")
+
+        assertThat(reverted.name).startsWith("Scan ")
+    }
+
+    @Test fun `loadAll reads back the persisted custom name`() = runTest {
+        val scan = store.persist(payload())
+        store.rename(scan, "Passport")
+
+        val loaded = store.loadAll().single()
+
+        assertThat(loaded.name).isEqualTo("Passport")
+    }
+
+    @Test fun `loadAll falls back to default name when name file is missing`() = runTest {
+        val scan = store.persist(payload())
+        File(scan.pdf.parentFile, "name.txt").delete()
+
+        val loaded = store.loadAll().single()
+
+        assertThat(loaded.name).startsWith("Scan ")
+    }
+
     @Test fun `persist with no pdf throws`() = runTest {
         try {
             store.persist(ScanPayload(pdf = null, pages = emptyList()))
