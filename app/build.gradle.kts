@@ -30,6 +30,19 @@ android {
             isIncludeAndroidResources = true
             isReturnDefaultValues = true
         }
+
+        // A headless emulator that `./gradlew :app:pixel6api36DebugAndroidTest`
+        // will provision automatically. Uses the Play Store system image
+        // because ML Kit depends on Play Services.
+        managedDevices {
+            localDevices {
+                create("pixel6api36") {
+                    device = "Pixel 6"
+                    apiLevel = 36
+                    systemImageSource = "google_apis_playstore"
+                }
+            }
+        }
     }
 
     buildTypes {

@@ -51,13 +51,18 @@ class MigsScanAppUiTest {
 
         composeRule.onNodeWithText("No scans yet").assertIsDisplayed()
         composeRule.onNodeWithText("Scan a document").assertIsDisplayed()
-        composeRule.onNodeWithText("Scan").assertIsDisplayed()  // the FAB
+        // ExtendedFAB merges its child semantics, so reach into the unmerged
+        // tree for the "Scan" label — and use assertExists so a tiny test
+        // window that clips the FAB off-screen doesn't fail this test.
+        composeRule.onNodeWithText("Scan", useUnmergedTree = true).assertExists()
     }
 
-    @Test fun scanListRendersOneRowPerPersistedScan() = runBlocking {
-        store.persist(payload(label = "a"))
-        store.persist(payload(label = "b"))
-        store.persist(payload(label = "c"))
+    @Test fun scanListRendersOneRowPerPersistedScan() {
+        runBlocking {
+            store.persist(payload(label = "a"))
+            store.persist(payload(label = "b"))
+            store.persist(payload(label = "c"))
+        }
 
         composeRule.setContent {
             MigsScanTheme { MigsScanApp(vm = ScanViewModel(app, store)) }
@@ -73,8 +78,8 @@ class MigsScanAppUiTest {
         assertThat(pageLabels).hasSize(3)
     }
 
-    @Test fun tappingAScanRowOpensTheActionSheet() = runBlocking {
-        store.persist(payload(label = "only"))
+    @Test fun tappingAScanRowOpensTheActionSheet() {
+        runBlocking { store.persist(payload(label = "only")) }
 
         composeRule.setContent {
             MigsScanTheme { MigsScanApp(vm = ScanViewModel(app, store)) }

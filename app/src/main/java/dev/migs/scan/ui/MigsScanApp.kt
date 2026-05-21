@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -121,7 +122,8 @@ private fun EmptyState(padding: PaddingValues, onScanClick: () -> Unit) {
         Spacer(Modifier.height(32.dp))
         Button(onClick = onScanClick, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Filled.DocumentScanner, contentDescription = null)
-            Text("  Scan a document", fontSize = 16.sp)
+            Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+            Text("Scan a document", fontSize = 16.sp)
         }
     }
 }
