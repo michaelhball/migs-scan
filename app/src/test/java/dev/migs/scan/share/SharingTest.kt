@@ -42,18 +42,31 @@ class SharingTest {
         File(context.cacheDir, "share").deleteRecursively()
     }
 
-    @Test fun `friendlyName uses Scan + timestamp + extension for a single-file share`() {
-        val scan = oneFakeScan(pageCount = 1)
+    @Test fun `friendlyName uses scan name + extension for a single-file share`() {
+        val scan = oneFakeScan(pageCount = 1).copy(name = "Tax return 2024")
         val name = Sharing.friendlyName(scan, ShareFormat.Pdf, index = 0, total = 1)
-        assertThat(name).startsWith("Scan ")
-        assertThat(name).endsWith(".pdf")
-        assertThat(name).doesNotContain("p1")  // no page suffix for single-file shares
+        assertThat(name).isEqualTo("Tax return 2024.pdf")
     }
 
     @Test fun `friendlyName appends page suffix for multi-file shares`() {
-        val scan = oneFakeScan(pageCount = 3)
+        val scan = oneFakeScan(pageCount = 3).copy(name = "Passport")
         val name = Sharing.friendlyName(scan, ShareFormat.Jpeg, index = 1, total = 3)
-        assertThat(name).endsWith(" p2.jpg")
+        assertThat(name).isEqualTo("Passport p2.jpg")
+    }
+
+    @Test fun `friendlyName scrubs filesystem-unsafe characters from scan name`() {
+        val scan = oneFakeScan(pageCount = 1).copy(name = "Receipt 2024/05/21 ?*<>|")
+        val name = Sharing.friendlyName(scan, ShareFormat.Pdf, index = 0, total = 1)
+        assertThat(name).doesNotContain("/")
+        assertThat(name).doesNotContain("?")
+        assertThat(name).doesNotContain("*")
+        assertThat(name).endsWith(".pdf")
+    }
+
+    @Test fun `friendlyName falls back to default timestamp if scan name is blank after scrubbing`() {
+        val scan = oneFakeScan(pageCount = 1).copy(name = "////")
+        val name = Sharing.friendlyName(scan, ShareFormat.Pdf, index = 0, total = 1)
+        assertThat(name).startsWith("Scan ")
     }
 
     @Test fun `pdf share aliases the source under cacheDir share with friendly name`() = runTest {
@@ -65,7 +78,7 @@ class SharingTest {
         assertThat(aliasDir.exists()).isTrue()
         val aliases = aliasDir.listFiles()!!.map { it.name }
         assertThat(aliases).hasSize(1)
-        assertThat(aliases.single()).startsWith("Scan ")
+        // Default name is "Scan ..."; renamed scans flow through here too.
         assertThat(aliases.single()).endsWith(".pdf")
     }
 

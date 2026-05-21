@@ -99,14 +99,20 @@ object Sharing {
     private val NameDateFormat: DateTimeFormatter =
         DateTimeFormatter.ofPattern("yyyy-MM-dd HHmm").withZone(ZoneId.systemDefault())
 
+    /** Characters disallowed on common filesystems and by content providers. */
+    private val UnsafeFsChars = Regex("""[/\\?%*|"<>:\x00-\x1F]""")
+
     internal fun friendlyName(scan: Scan, format: ShareFormat, index: Int, total: Int): String {
-        val ts = NameDateFormat.format(scan.createdAt)
         val ext = when (format) {
             ShareFormat.Pdf -> "pdf"
             ShareFormat.Jpeg -> "jpg"
             ShareFormat.Png -> "png"
         }
-        return if (total > 1) "Scan $ts p${index + 1}.$ext" else "Scan $ts.$ext"
+        val base = scan.name
+            .replace(UnsafeFsChars, " ")
+            .trim()
+            .ifEmpty { "Scan ${NameDateFormat.format(scan.createdAt)}" }
+        return if (total > 1) "$base p${index + 1}.$ext" else "$base.$ext"
     }
 
     private fun encodePages(context: Context, scan: Scan): List<File> {

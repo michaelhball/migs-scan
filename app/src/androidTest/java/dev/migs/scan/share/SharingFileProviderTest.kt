@@ -62,7 +62,7 @@ class SharingFileProviderTest {
         assertThat(bytes).isEqualTo(Fixtures.pdfBytes())
     }
 
-    @Test fun shareUriEndsInTheFriendlyName() = runTest {
+    @Test fun shareUriEndsInTheScanName() = runTest {
         val scan = oneFakeScan(pageCount = 1)
 
         val chooser = Sharing.buildShareIntent(context, scan, ShareFormat.Pdf)
@@ -72,8 +72,7 @@ class SharingFileProviderTest {
         // The chooser preview reads the URI's last path segment to show
         // the filename — assert that's the friendly form, not "doc.pdf".
         val lastSegment = streamUri.lastPathSegment!!
-        assertThat(lastSegment).startsWith("Scan ")
-        assertThat(lastSegment).endsWith(".pdf")
+        assertThat(lastSegment).isEqualTo("${scan.name}.pdf")
     }
 
     @Test fun pngShareUriResolvesFromCacheDir() = runTest {
