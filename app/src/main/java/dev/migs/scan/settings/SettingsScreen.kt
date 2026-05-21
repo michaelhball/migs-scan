@@ -34,6 +34,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import dev.migs.scan.backup.BackupState
+import dev.migs.scan.backup.BackupViewModel
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -48,10 +55,16 @@ import dev.migs.scan.share.ShareFormat
 fun SettingsScreen(
     onClose: () -> Unit,
     vm: SettingsViewModel = viewModel(),
+    backupVm: BackupViewModel = viewModel(),
 ) {
     BackHandler(onBack = onClose)
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val backupState by backupVm.state.collectAsStateWithLifecycle()
     var showAddPreset by remember { mutableStateOf(false) }
+
+    val folderPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree(),
+    ) { uri -> if (uri != null) backupVm.chooseFolder(uri) }
 
     Scaffold(
         topBar = {
@@ -118,6 +131,21 @@ fun SettingsScreen(
                     Spacer(Modifier.size(16.dp))
                     Text("Add preset", style = MaterialTheme.typography.bodyLarge)
                 }
+            }
+
+            item { Spacer(Modifier.height(12.dp)) }
+            item { SectionHeader("Backup") }
+            item {
+                BackupSection(
+                    folderUri = settings.backupFolderUri,
+                    lastBackupAt = settings.lastBackupAt,
+                    backupState = backupState,
+                    onPickFolder = { folderPicker.launch(null) },
+                    onForgetFolder = { backupVm.forgetFolder() },
+                    onBackupNow = {
+                        settings.backupFolderUri?.let { backupVm.backupNow(it) }
+                    },
+                )
             }
         }
     }
@@ -325,4 +353,80 @@ private val ShareFormat.label: String
         ShareFormat.Jpeg -> "JPEG"
         ShareFormat.Png -> "PNG"
     }
+
+private val LastBackupFormat: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("MMM d, yyyy · HH:mm").withZone(ZoneId.systemDefault())
+
+@Composable
+private fun BackupSection(
+    folderUri: String?,
+    lastBackupAt: Long?,
+    backupState: BackupState,
+    onPickFolder: () -> Unit,
+    onForgetFolder: () -> Unit,
+    onBackupNow: () -> Unit,
+) {
+    Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)) {
+        Text(
+            text = if (folderUri == null) "No backup folder picked"
+                   else "Backing up to a folder you chose",
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        if (folderUri != null) {
+            Text(
+                text = folderUri,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        if (lastBackupAt != null) {
+            Text(
+                text = "Last backup: ${LastBackupFormat.format(Instant.ofEpochMilli(lastBackupAt))}",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        } else if (folderUri != null) {
+            Text(
+                text = "No backup has run yet for this folder.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        when (val s = backupState) {
+            BackupState.Idle -> Unit
+            BackupState.InProgress -> Text(
+                text = "Backing up…",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            is BackupState.Done -> Text(
+                text = if (s.written == 0) "All ${s.total} scans already backed up."
+                       else "${s.written} new scan${if (s.written == 1) "" else "s"} backed up (${s.total} total).",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            is BackupState.Failed -> Text(
+                text = "Backup failed: ${s.message}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        androidx.compose.foundation.layout.Row {
+            TextButton(onClick = onPickFolder) {
+                Text(if (folderUri == null) "Pick a folder" else "Change folder")
+            }
+            Spacer(Modifier.size(8.dp))
+            if (folderUri != null) {
+                TextButton(
+                    onClick = onBackupNow,
+                    enabled = backupState !is BackupState.InProgress,
+                ) { Text("Back up now") }
+                Spacer(Modifier.size(8.dp))
+                TextButton(onClick = onForgetFolder) { Text("Forget") }
+            }
+        }
+    }
+}
 

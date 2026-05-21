@@ -13,6 +13,7 @@ play-services-base = "18.5.0"
 desugar-jdk-libs = "2.1.4"
 coil = "3.0.4"
 datastore = "1.1.1"
+documentfile = "1.0.1"
 
 # Test
 junit = "4.13.2"
@@ -47,6 +48,7 @@ play-services-base = { module = "com.google.android.gms:play-services-base", ver
 desugar-jdk-libs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugar-jdk-libs" }
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
+androidx-documentfile = { module = "androidx.documentfile:documentfile", version.ref = "documentfile" }
 
 # Test
 junit = { module = "junit:junit", version.ref = "junit" }

@@ -7,6 +7,10 @@ data class Settings(
     /** Null means "ask each time" (open the action sheet). */
     val defaultShareFormat: ShareFormat? = null,
     val presets: List<Preset> = emptyList(),
+    /** SAF tree URI string, or null if the user hasn't picked a backup folder. */
+    val backupFolderUri: String? = null,
+    /** Epoch millis of the last successful backup, or null if never. */
+    val lastBackupAt: Long? = null,
 )
 
 /**

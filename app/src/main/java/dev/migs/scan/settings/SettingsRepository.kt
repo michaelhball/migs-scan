@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dev.migs.scan.share.ShareFormat
@@ -23,6 +24,8 @@ class SettingsRepository(context: Context) {
             defaultShareFormat = prefs[KeyDefaultShareFormat]
                 ?.let { runCatching { ShareFormat.valueOf(it) }.getOrNull() },
             presets = prefs[KeyPresets]?.let(::decodePresets).orEmpty(),
+            backupFolderUri = prefs[KeyBackupFolderUri],
+            lastBackupAt = prefs[KeyLastBackupAt],
         )
     }
 
@@ -51,10 +54,22 @@ class SettingsRepository(context: Context) {
         }
     }
 
+    suspend fun setBackupFolderUri(uri: String?) {
+        store.edit { prefs ->
+            if (uri == null) prefs.remove(KeyBackupFolderUri) else prefs[KeyBackupFolderUri] = uri
+        }
+    }
+
+    suspend fun setLastBackupAt(epochMs: Long) {
+        store.edit { it[KeyLastBackupAt] = epochMs }
+    }
+
     companion object {
         private val KeyScannerUi = stringPreferencesKey("scanner_ui")
         private val KeyDefaultShareFormat = stringPreferencesKey("default_share_format")
         private val KeyPresets = stringPreferencesKey("presets")
+        private val KeyBackupFolderUri = stringPreferencesKey("backup_folder_uri")
+        private val KeyLastBackupAt = longPreferencesKey("last_backup_at")
 
         // One preset per line. Fields tab-separated, in fixed order:
         //   id<TAB>label<TAB>format<TAB>packageName<TAB>emails-comma-separated

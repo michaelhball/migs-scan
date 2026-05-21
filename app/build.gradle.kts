@@ -91,6 +91,7 @@ dependencies {
     implementation(libs.play.services.base)
     implementation(libs.coil.compose)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.documentfile)
 
     coreLibraryDesugaring(libs.desugar.jdk.libs)
 
