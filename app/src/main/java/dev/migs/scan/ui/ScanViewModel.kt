@@ -46,6 +46,15 @@ class ScanViewModel internal constructor(
         }
     }
 
+    fun deleteAll(ids: Set<String>) {
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            val toDelete = _scans.value.filter { it.id in ids }
+            toDelete.forEach { store.delete(it) }
+            _scans.value = _scans.value.filterNot { it.id in ids }
+        }
+    }
+
     fun rename(scan: Scan, newName: String) {
         viewModelScope.launch {
             val renamed = store.rename(scan, newName)

@@ -1,7 +1,11 @@
 package dev.migs.scan.ui
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +20,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DocumentScanner
@@ -84,6 +90,10 @@ fun MigsScanApp(vm: ScanViewModel = viewModel()) {
     var renamingScan by remember { mutableStateOf<Scan?>(null) }
     var previewScan by remember { mutableStateOf<Scan?>(null) }
     var query by remember { mutableStateOf("") }
+    var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var confirmDeleteAll by remember { mutableStateOf(false) }
+    val inSelectionMode = selectedIds.isNotEmpty()
+    BackHandler(enabled = inSelectionMode) { selectedIds = emptySet() }
 
     // Keep the previewed scan in sync if it gets renamed underneath us.
     val livePreviewScan = remember(previewScan, scans) {
@@ -107,21 +117,33 @@ fun MigsScanApp(vm: ScanViewModel = viewModel()) {
         Surface(modifier = Modifier.fillMaxSize()) {
             Scaffold(
                 topBar = {
-                    TopAppBar(
-                        title = { Text("MigsScan") },
-                        // surfaceContainer reads as a subtle "bar" tier above the
-                        // page background, so the title doesn't float in space.
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                        ),
-                    )
+                    if (inSelectionMode) {
+                        SelectionTopBar(
+                            count = selectedIds.size,
+                            onCancel = { selectedIds = emptySet() },
+                            onDelete = { confirmDeleteAll = true },
+                        )
+                    } else {
+                        TopAppBar(
+                            title = { Text("MigsScan") },
+                            // surfaceContainer reads as a subtle "bar" tier above the
+                            // page background, so the title doesn't float in space.
+                            colors = TopAppBarDefaults.topAppBarColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                            ),
+                        )
+                    }
                 },
                 floatingActionButton = {
-                    ExtendedFloatingActionButton(
-                        onClick = launchScanner,
-                        icon = { Icon(Icons.Filled.DocumentScanner, contentDescription = null) },
-                        text = { Text("Scan") },
-                    )
+                    // Hide the Scan FAB while selecting — its position competes
+                    // with the contextual top bar's mental model.
+                    if (!inSelectionMode) {
+                        ExtendedFloatingActionButton(
+                            onClick = launchScanner,
+                            icon = { Icon(Icons.Filled.DocumentScanner, contentDescription = null) },
+                            text = { Text("Scan") },
+                        )
+                    }
                 },
             ) { padding ->
                 when {
@@ -132,9 +154,29 @@ fun MigsScanApp(vm: ScanViewModel = viewModel()) {
                         query = query,
                         onQueryChange = { query = it },
                         padding = padding,
-                        onOpenPreview = { previewScan = it },
-                        onOpenActions = { openedScan = it },
-                        onToggleStar = { vm.setStarred(it, !it.starred) },
+                        selectedIds = selectedIds,
+                        onOpenPreview = {
+                            if (inSelectionMode) {
+                                selectedIds = selectedIds.toggle(it.id)
+                            } else {
+                                previewScan = it
+                            }
+                        },
+                        onOpenActions = { onClicked ->
+                            if (inSelectionMode) {
+                                selectedIds = selectedIds.toggle(onClicked.id)
+                            } else {
+                                openedScan = onClicked
+                            }
+                        },
+                        onToggleStar = {
+                            if (inSelectionMode) {
+                                selectedIds = selectedIds.toggle(it.id)
+                            } else {
+                                vm.setStarred(it, !it.starred)
+                            }
+                        },
+                        onLongPress = { selectedIds = selectedIds + it.id },
                     )
                 }
             }
@@ -177,6 +219,49 @@ fun MigsScanApp(vm: ScanViewModel = viewModel()) {
             onDismiss = { renamingScan = null },
         )
     }
+
+    if (confirmDeleteAll) {
+        AlertDialog(
+            onDismissRequest = { confirmDeleteAll = false },
+            title = { Text("Delete ${selectedIds.size} scan${if (selectedIds.size == 1) "" else "s"}?") },
+            text = { Text("This permanently removes the scans from this device. Files already shared elsewhere are unaffected.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val toDelete = selectedIds
+                    confirmDeleteAll = false
+                    selectedIds = emptySet()
+                    vm.deleteAll(toDelete)
+                }) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDeleteAll = false }) { Text("Cancel") }
+            },
+        )
+    }
+}
+
+private fun Set<String>.toggle(id: String): Set<String> =
+    if (id in this) this - id else this + id
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SelectionTopBar(count: Int, onCancel: () -> Unit, onDelete: () -> Unit) {
+    TopAppBar(
+        title = { Text("$count selected") },
+        navigationIcon = {
+            IconButton(onClick = onCancel) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Cancel selection")
+            }
+        },
+        actions = {
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Filled.Delete, contentDescription = "Delete selected")
+            }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ),
+    )
 }
 
 @Composable
@@ -208,9 +293,11 @@ private fun ScanListWithSearch(
     query: String,
     onQueryChange: (String) -> Unit,
     padding: PaddingValues,
+    selectedIds: Set<String>,
     onOpenPreview: (Scan) -> Unit,
     onOpenActions: (Scan) -> Unit,
     onToggleStar: (Scan) -> Unit,
+    onLongPress: (Scan) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -265,7 +352,9 @@ private fun ScanListWithSearch(
                 items(filtered, key = { it.id }) { scan ->
                     ScanRow(
                         scan = scan,
+                        selected = scan.id in selectedIds,
                         onClick = { onOpenPreview(scan) },
+                        onLongClick = { onLongPress(scan) },
                         onShareClick = { onOpenActions(scan) },
                         onStarClick = { onToggleStar(scan) },
                     )
@@ -278,19 +367,53 @@ private fun ScanListWithSearch(
 private val rowDateFormat = DateTimeFormatter.ofPattern("MMM d, yyyy · HH:mm")
     .withZone(ZoneId.systemDefault())
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ScanRow(
     scan: Scan,
+    selected: Boolean,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
     onShareClick: () -> Unit,
     onStarClick: () -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+    val border = if (selected) {
+        Modifier.border(
+            width = 2.dp,
+            color = MaterialTheme.colorScheme.primary,
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+        )
+    } else {
+        Modifier
+    }
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(border)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            ScanThumbnail(scan)
+            Box(contentAlignment = Alignment.Center) {
+                ScanThumbnail(scan)
+                if (selected) {
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.Filled.Check,
+                            contentDescription = "Selected",
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                        )
+                    }
+                }
+            }
             Spacer(Modifier.size(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(

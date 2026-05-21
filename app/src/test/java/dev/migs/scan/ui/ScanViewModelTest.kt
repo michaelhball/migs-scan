@@ -74,6 +74,35 @@ class ScanViewModelTest {
         assertThat(scan.pdf.parentFile?.exists()).isFalse()
     }
 
+    @Test fun `deleteAll removes every scan with a matching id from disk and the list`() = runTest(mainDispatcherRule.testDispatcher) {
+        val vm = ScanViewModel(app, store)
+        vm.onPayload(payload(label = "a"))
+        vm.onPayload(payload(label = "b"))
+        vm.onPayload(payload(label = "c"))
+        advanceUntilIdle()
+        val ids = vm.scans.value.take(2).map { it.id }.toSet()
+        val survivor = vm.scans.value.last()
+
+        vm.deleteAll(ids)
+        advanceUntilIdle()
+
+        assertThat(vm.scans.value.map { it.id }).containsExactly(survivor.id)
+        ids.forEach { id ->
+            assertThat(java.io.File(app.filesDir, "scans/$id").exists()).isFalse()
+        }
+    }
+
+    @Test fun `deleteAll with empty set is a no-op`() = runTest(mainDispatcherRule.testDispatcher) {
+        val vm = ScanViewModel(app, store)
+        vm.onPayload(payload())
+        advanceUntilIdle()
+
+        vm.deleteAll(emptySet())
+        advanceUntilIdle()
+
+        assertThat(vm.scans.value).hasSize(1)
+    }
+
     @Test fun `rename updates the scan in the list with the new name`() = runTest(mainDispatcherRule.testDispatcher) {
         val vm = ScanViewModel(app, store)
         vm.onPayload(payload())

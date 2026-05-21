@@ -9,6 +9,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.longClick
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
@@ -147,6 +149,49 @@ class MigsScanAppUiTest {
         // Preview's TopAppBar shows the scan name + page count, and there's a Back button.
         composeRule.onNodeWithContentDescription("Back").assertIsDisplayed()
         composeRule.onNodeWithText("1 page").assertIsDisplayed()
+    }
+
+    @Test fun longPressEntersSelectionModeAndDeleteRemovesSelected() {
+        runBlocking {
+            store.persist(payload(label = "a")).also { store.rename(it, "Lease") }
+            store.persist(payload(label = "b")).also { store.rename(it, "Insurance") }
+            store.persist(payload(label = "c")).also { store.rename(it, "Permits") }
+        }
+
+        composeRule.setContent {
+            MigsScanTheme { MigsScanApp(vm = ScanViewModel(app, store)) }
+        }
+        composeRule.waitForIdle()
+
+        // Long-press "Lease" to enter selection mode.
+        composeRule.onNodeWithText("Lease").performTouchInput { longClick() }
+        composeRule.waitForIdle()
+
+        // Contextual top bar shows "1 selected".
+        composeRule.onNodeWithText("1 selected").assertIsDisplayed()
+
+        // Tap "Insurance" to add it to the selection.
+        composeRule.onNodeWithText("Insurance").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("2 selected").assertIsDisplayed()
+
+        // Tap the delete-selected icon, then confirm.
+        composeRule.onNodeWithContentDescription("Delete selected").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Delete").performClick()
+        composeRule.waitForIdle()
+
+        // Only "Permits" survives, both on screen and on disk.
+        composeRule.onAllNodesWithText("Lease").fetchSemanticsNodes().also {
+            assertThat(it).isEmpty()
+        }
+        composeRule.onAllNodesWithText("Insurance").fetchSemanticsNodes().also {
+            assertThat(it).isEmpty()
+        }
+        composeRule.onNodeWithText("Permits").assertIsDisplayed()
+        runBlocking {
+            assertThat(store.loadAll().map { it.name }).containsExactly("Permits")
+        }
     }
 
     @Test fun renameDialogPersistsTheNewNameAndUpdatesTheList() {
