@@ -1,37 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Adaptive-icon foreground. Source of truth: tools/icon-foreground.svg
+     (re-render legacy PNGs with tools/render-icons.sh). The brand colour
+     comes from the background layer; everything brand-coloured in the SVG
+     is a real hole here (evenOdd), so the monochrome/themed icon keeps the
+     same detail instead of filling in. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Page with folded corner. -->
+    <!-- Bunny ears: family motif shared with migs-music / migs-pod. Outer
+         ellipse with the inner-ear ellipse cut out. -->
+    <group android:rotation="-12" android:pivotX="45" android:pivotY="34">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:fillType="evenOdd"
+            android:pathData="M37.5,34 a7.5,20 0 1,0 15,0 a7.5,20 0 1,0 -15,0 Z M41.8,35 a3.2,12 0 1,0 6.4,0 a3.2,12 0 1,0 -6.4,0 Z" />
+    </group>
+    <group android:rotation="12" android:pivotX="63" android:pivotY="34">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:fillType="evenOdd"
+            android:pathData="M55.5,34 a7.5,20 0 1,0 15,0 a7.5,20 0 1,0 -15,0 Z M59.8,35 a3.2,12 0 1,0 6.4,0 a3.2,12 0 1,0 -6.4,0 Z" />
+    </group>
+
+    <!-- Document page (rounded rect) with the two text lines and the scan
+         beam cut out as stadium-shaped holes. -->
     <path
         android:fillColor="#FFFFFFFF"
-        android:pathData="M40,33 L62,33 L74,45 L74,75 L40,75 Z" />
-    <path
-        android:fillColor="#33000000"
-        android:pathData="M62,33 L62,45 L74,45 Z" />
+        android:fillType="evenOdd"
+        android:pathData="M43.5,54 H64.5 A3.5,3.5 0 0,1 68,57.5 V80.5 A3.5,3.5 0 0,1 64.5,84 H43.5 A3.5,3.5 0 0,1 40,80.5 V57.5 A3.5,3.5 0 0,1 43.5,54 Z M46,60.8 H62 A1.2,1.2 0 0,1 62,63.2 H46 A1.2,1.2 0 0,1 46,60.8 Z M45,68.1 H63 A1.9,1.9 0 0,1 63,71.9 H45 A1.9,1.9 0 0,1 45,68.1 Z M46,76.8 H62 A1.2,1.2 0 0,1 62,79.2 H46 A1.2,1.2 0 0,1 46,76.8 Z" />
 
-    <!-- Scan viewfinder brackets. -->
+    <!-- Scanner light bar: nibs poking past the page edges, level with the beam. -->
     <path
         android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="2.5"
+        android:strokeWidth="3.8"
         android:strokeLineCap="round"
-        android:pathData="M28,34 L28,28 L34,28" />
+        android:pathData="M33,70 H40" />
     <path
         android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="2.5"
+        android:strokeWidth="3.8"
         android:strokeLineCap="round"
-        android:pathData="M80,34 L80,28 L74,28" />
-    <path
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="2.5"
-        android:strokeLineCap="round"
-        android:pathData="M28,74 L28,80 L34,80" />
-    <path
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="2.5"
-        android:strokeLineCap="round"
-        android:pathData="M80,74 L80,80 L74,80" />
+        android:pathData="M68,70 H75" />
 </vector>

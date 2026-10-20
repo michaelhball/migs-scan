@@ -112,6 +112,6 @@ app/
     ui/                          # MigsScanApp, ScanViewModel, ScannerLauncher
   src/test/                      # local JVM / Robolectric suite
   src/androidTest/               # on-device suite
-tools/icon.svg                   # source for the launcher icon (re-export with ImageMagick)
+tools/icon.svg                   # launcher icon source; tools/render-icons.sh re-renders the legacy PNGs
 .github/workflows/ci.yml         # build + unit tests on every push
 ```
