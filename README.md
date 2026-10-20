@@ -15,6 +15,9 @@ is just a thin wrapper around it: launch the scanner, save the result, share.
 - **ID card mode** — scan the front and back of a card and get them laid
   out together on a single A4 page (about 1.5× real size), the way a
   photocopier would, instead of one near-empty sheet per side
+- **Passport mode** — one capture of the photo page, placed landscape on a
+  portrait page at a touch over real size; a sideways capture is turned
+  upright by asking OCR which way round it reads
 - Automatic edge detection and perspective correction
 - Import existing photos from the gallery instead of capturing live
 - Share each scan as **PDF**, **JPEG**, or **PNG** via the standard Android
@@ -86,7 +89,7 @@ you run it (a `google_apis_playstore` system image is downloaded —
 
 | Suite | Files | What it covers |
 |---|---|---|
-| Local | `ScanStoreTest`, `IdCardComposerTest`, `ShareFormatTest`, `SharingTest`, `ScanViewModelTest` | persistence, ID-card page layout, intent shape, PNG re-encode cache, ViewModel state |
+| Local | `ScanStoreTest`, `CardComposerTest`, `ShareFormatTest`, `SharingTest`, `ScanViewModelTest` | persistence, card page layout, intent shape, PNG re-encode cache, ViewModel state |
 | On-device | `SharingFileProviderTest`, `MigsScanAppUiTest`, `ScanFlowEndToEndTest` | real FileProvider URIs, Compose screens, scan → persist → share round-trip |
 
 The local suite runs in CI on every push; the on-device suite is intended
@@ -107,7 +110,7 @@ to run against a plugged-in phone or an emulator.
 app/
   src/main/java/dev/migs/scan/
     MainActivity.kt              # hosts the Compose tree
-    data/                        # Scan, ScanPayload, ScanStore, PdfBuilder, IdCardComposer
+    data/                        # Scan, ScanPayload, ScanStore, PdfBuilder, CardComposer
     share/                       # ShareFormat, Sharing (intent builders)
     ui/                          # MigsScanApp, ScanViewModel, ScannerLauncher
   src/test/                      # local JVM / Robolectric suite

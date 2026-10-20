@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Badge
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
@@ -40,6 +41,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -136,6 +139,9 @@ fun MigsScanApp(
     val launchIdCardScanner = rememberDocumentScannerLauncher(settings.scannerUi, pageLimit = 2) { result ->
         if (result != null) vm.onScanResult(result, ScanKind.IdCard)
     }
+    val launchPassportScanner = rememberDocumentScannerLauncher(settings.scannerUi, pageLimit = 1) { result ->
+        if (result != null) vm.onScanResult(result, ScanKind.Passport)
+    }
 
     if (settingsOpen) {
         SettingsScreen(onClose = { settingsOpen = false }, vm = settingsVm)
@@ -192,13 +198,35 @@ fun MigsScanApp(
                     if (!inSelectionMode) {
                         Column(horizontalAlignment = Alignment.End) {
                             // Tonal (secondary) so it reads as the lesser of the two.
-                            ExtendedFloatingActionButton(
-                                onClick = launchIdCardScanner,
-                                icon = { Icon(Icons.Filled.Badge, contentDescription = null) },
-                                text = { Text("ID card") },
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                            )
+                            // One button for both card-sized modes keeps the
+                            // corner to two FABs; the menu picks which.
+                            var cardMenuOpen by remember { mutableStateOf(false) }
+                            Box {
+                                ExtendedFloatingActionButton(
+                                    onClick = { cardMenuOpen = true },
+                                    icon = { Icon(Icons.Filled.Badge, contentDescription = null) },
+                                    text = { Text("ID / passport") },
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                )
+                                DropdownMenu(
+                                    expanded = cardMenuOpen,
+                                    onDismissRequest = { cardMenuOpen = false },
+                                ) {
+                                    CardModeMenuItem(
+                                        icon = Icons.Filled.Badge,
+                                        title = "ID card",
+                                        detail = "Front and back on one page",
+                                        onClick = { cardMenuOpen = false; launchIdCardScanner() },
+                                    )
+                                    CardModeMenuItem(
+                                        icon = Icons.Filled.MenuBook,
+                                        title = "Passport",
+                                        detail = "Photo page, close to real size",
+                                        onClick = { cardMenuOpen = false; launchPassportScanner() },
+                                    )
+                                }
+                            }
                             Spacer(Modifier.height(12.dp))
                             ExtendedFloatingActionButton(
                                 onClick = launchScanner,
@@ -214,6 +242,7 @@ fun MigsScanApp(
                         padding = padding,
                         onScanClick = launchScanner,
                         onIdCardClick = launchIdCardScanner,
+                        onPassportClick = launchPassportScanner,
                     )
                     else -> ScanListWithSearch(
                         scans = scans,
@@ -357,7 +386,35 @@ private fun SelectionTopBar(count: Int, onCancel: () -> Unit, onDelete: () -> Un
 }
 
 @Composable
-private fun EmptyState(padding: PaddingValues, onScanClick: () -> Unit, onIdCardClick: () -> Unit) {
+private fun CardModeMenuItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    detail: String,
+    onClick: () -> Unit,
+) {
+    DropdownMenuItem(
+        leadingIcon = { Icon(icon, contentDescription = null) },
+        text = {
+            Column {
+                Text(title)
+                Text(
+                    detail,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        onClick = onClick,
+    )
+}
+
+@Composable
+private fun EmptyState(
+    padding: PaddingValues,
+    onScanClick: () -> Unit,
+    onIdCardClick: () -> Unit,
+    onPassportClick: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -376,10 +433,17 @@ private fun EmptyState(padding: PaddingValues, onScanClick: () -> Unit, onIdCard
             Text("Scan a document", fontSize = 16.sp)
         }
         Spacer(Modifier.height(8.dp))
+        // Lower-case "scan" on purpose: the UI test counts list rows by the
+        // "Scan " prefix of their default names.
         TextButton(onClick = onIdCardClick, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Filled.Badge, contentDescription = null)
             Spacer(Modifier.size(ButtonDefaults.IconSpacing))
             Text("Or scan an ID card — front and back on one page")
+        }
+        TextButton(onClick = onPassportClick, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Filled.MenuBook, contentDescription = null)
+            Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+            Text("Or scan a passport — photo page, close to real size")
         }
     }
 }

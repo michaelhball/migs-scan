@@ -16,7 +16,8 @@ class ScanStore(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val textExtractor: TextExtractor = TextExtractor.mlKit(context),
     private val pdfBuilder: (pages: List<File>, outFile: File) -> Unit = PdfBuilder::build,
-    private val idCardComposer: (sides: List<File>, outFile: File) -> Unit = IdCardComposer::compose,
+    private val cardComposer: (sides: List<CardComposer.Side>, spec: CardComposer.Spec, outFile: File) -> Unit =
+        CardComposer::compose,
 ) {
 
     private val root: File by lazy {
@@ -31,7 +32,8 @@ class ScanStore(
         val (pdf, pages) = try {
             when (payload.kind) {
                 ScanKind.Document -> materialiseDocument(payload, dir)
-                ScanKind.IdCard -> materialiseIdCard(payload, dir)
+                ScanKind.IdCard -> materialiseCard(payload, dir, CardComposer.Spec.IdCard, maxSides = 2)
+                ScanKind.Passport -> materialiseCard(payload, dir, CardComposer.Spec.Passport, maxSides = 1, landscape = true)
             }
         } catch (t: Throwable) {
             // Don't leave a half-written directory behind: loadAll() would
@@ -68,22 +70,61 @@ class ScanStore(
     }
 
     /**
-     * Front and back composed onto one page, and a PDF built from that.
+     * The captured sides composed onto one page, and a PDF built from that.
      * ML Kit's PDF (one full sheet per side) is deliberately ignored.
+     *
+     * With [landscape] set, a side that was captured portrait is assumed to
+     * be a landscape document shot sideways, and is turned to read upright.
      */
-    private fun materialiseIdCard(payload: ScanPayload, dir: File): Pair<File, List<File>> {
-        require(payload.pages.isNotEmpty()) { "ID card payload has no sides" }
-        val sides = payload.pages.take(2).mapIndexed { index, uri ->
+    private suspend fun materialiseCard(
+        payload: ScanPayload,
+        dir: File,
+        spec: CardComposer.Spec,
+        maxSides: Int,
+        landscape: Boolean = false,
+    ): Pair<File, List<File>> {
+        require(payload.pages.isNotEmpty()) { "${payload.kind} payload has no sides" }
+        val files = payload.pages.take(maxSides).mapIndexed { index, uri ->
             File(dir, "side-${index + 1}.jpg").also { copyFromUri(uri, it) }
         }
         val page = File(dir, "page-1.jpg")
         try {
-            idCardComposer(sides, page)
+            val sides = files.map { file ->
+                val rotation = if (landscape && CardComposer.dimensionsOf(file).isPortrait) {
+                    uprightRotationFor(file, dir)
+                } else {
+                    0
+                }
+                CardComposer.Side(file, rotation)
+            }
+            cardComposer(sides, spec, page)
         } finally {
-            sides.forEach { it.delete() }
+            files.forEach { it.delete() }
         }
         val pdf = File(dir, "doc.pdf").also { pdfBuilder(listOf(page), it) }
         return pdf to listOf(page)
+    }
+
+    /**
+     * Which clockwise quarter turn makes a portrait capture of a landscape
+     * document read upright. Runs OCR over a small preview at each candidate
+     * and keeps the one that yields the most text: a passport's MRZ lines
+     * are only recognised the right way up. Candidates are tried landscape
+     * first so a tie (OCR unavailable, blank image) still lands landscape;
+     * 0° wins only when the capture genuinely reads best as it is, e.g. a
+     * whole open passport rather than a sideways photo page.
+     */
+    private suspend fun uprightRotationFor(file: File, dir: File): Int {
+        val scores = OrientationCandidates.map { rotation ->
+            val preview = File(dir, "orient-$rotation.jpg")
+            try {
+                CardComposer.writeRotatedPreview(file, rotation, preview)
+                textExtractor.extractFrom(preview).count { it.isLetterOrDigit() || it == '<' }
+            } finally {
+                preview.delete()
+            }
+        }
+        return OrientationCandidates[scores.indices.maxBy { scores[it] }]
     }
 
     suspend fun loadAll(): List<Scan> = withContext(ioDispatcher) {
@@ -233,6 +274,9 @@ class ScanStore(
         private const val StarredFile = "starred"
         private const val TextFile = "text.txt"
         private val LeftoverPagePattern = Regex("""page-\d+\.(jpg|txt)""")
+
+        /** Clockwise turns tried for a sideways capture, in tie-break order. */
+        private val OrientationCandidates = listOf(90, 270, 0)
         private val DefaultNameFormat: DateTimeFormatter =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HHmm").withZone(ZoneId.systemDefault())
 
@@ -240,6 +284,7 @@ class ScanStore(
             val prefix = when (kind) {
                 ScanKind.Document -> "Scan"
                 ScanKind.IdCard -> "ID card"
+                ScanKind.Passport -> "Passport"
             }
             return "$prefix ${DefaultNameFormat.format(createdAt)}"
         }

@@ -11,6 +11,7 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.annotation.GraphicsMode
 import java.io.File
 
 @RunWith(AndroidJUnit4::class)
@@ -295,8 +296,8 @@ class ScanStoreTest {
             context,
             textExtractor = TextExtractor { f -> "OCR of ${f.name}" },
             pdfBuilder = { pages, out -> out.writeText("pdf with ${pages.size} pages") },
-            idCardComposer = { sides, out ->
-                composedFrom += sides.map { it.name }
+            cardComposer = { sides, _, out ->
+                composedFrom += sides.map { it.file.name }
                 out.writeBytes(Fixtures.jpegBytes())
             },
         )
@@ -342,8 +343,8 @@ class ScanStoreTest {
 
         val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
         android.graphics.BitmapFactory.decodeFile(scan.pages.single().absolutePath, bounds)
-        assertThat(bounds.outWidth).isEqualTo(IdCardComposer.PageWidthPx)
-        assertThat(bounds.outHeight).isEqualTo(IdCardComposer.PageHeightPx)
+        assertThat(bounds.outWidth).isEqualTo(CardComposer.PageWidthPx)
+        assertThat(bounds.outHeight).isEqualTo(CardComposer.PageHeightPx)
     }
 
     @Test fun `persist ID card with no sides throws and leaves no directory behind`() = runTest {
@@ -354,6 +355,122 @@ class ScanStoreTest {
             assertThat(expected).hasMessageThat().contains("sides")
         }
         assertThat(File(context.filesDir, "scans").list().orEmpty()).isEmpty()
+    }
+
+    @Test fun `persist passport keeps a landscape capture as it is`() = runTest {
+        val composed = mutableListOf<Pair<List<CardComposer.Side>, CardComposer.Spec>>()
+        val extracted = mutableListOf<String>()
+        val passportStore = ScanStore(
+            context,
+            textExtractor = TextExtractor { f -> extracted += f.name; "" },
+            pdfBuilder = { pages, out -> out.writeText("pdf with ${pages.size} pages") },
+            cardComposer = { sides, spec, out -> composed += sides to spec; out.writeBytes(Fixtures.jpegBytes()) },
+        )
+        val payload = ScanPayload(
+            pdf = null,
+            pages = listOf(
+                Fixtures.fileUri(sourceDir, "page.jpg", Fixtures.jpegBytes(Color.RED, width = 160, height = 100)),
+                Fixtures.fileUri(sourceDir, "extra.jpg", Fixtures.jpegBytes(Color.BLUE, width = 160, height = 100)),
+            ),
+            kind = ScanKind.Passport,
+        )
+
+        val scan = passportStore.persist(payload)
+
+        val (sides, spec) = composed.single()
+        assertThat(spec).isEqualTo(CardComposer.Spec.Passport)
+        // A passport is one capture: a second page is ignored, not composed.
+        assertThat(sides.map { it.file.name to it.rotation }).containsExactly("side-1.jpg" to 0)
+        assertThat(scan.name).startsWith("Passport ")
+        assertThat(scan.pages.map { it.name }).containsExactly("page-1.jpg")
+        // Landscape already: no orientation probe, only the page's own OCR.
+        assertThat(extracted).containsExactly("page-1.jpg")
+    }
+
+    @Test fun `persist passport turns a sideways capture clockwise when OCR has nothing to say`() = runTest {
+        val composed = mutableListOf<CardComposer.Side>()
+        val passportStore = ScanStore(
+            context,
+            textExtractor = TextExtractor.Empty,
+            pdfBuilder = { pages, out -> out.writeText("pdf with ${pages.size} pages") },
+            cardComposer = { sides, _, out -> composed += sides; out.writeBytes(Fixtures.jpegBytes()) },
+        )
+        val payload = ScanPayload(
+            pdf = null,
+            pages = listOf(Fixtures.fileUri(sourceDir, "tall.jpg", Fixtures.jpegBytes(Color.RED, width = 100, height = 160))),
+            kind = ScanKind.Passport,
+        )
+
+        val scan = passportStore.persist(payload)
+
+        assertThat(composed.single().rotation).isEqualTo(90)
+        val leftovers = scan.pdf.parentFile!!.list()!!.filter { it.startsWith("orient-") || it.startsWith("side-") }
+        assertThat(leftovers).isEmpty()
+    }
+
+    @Test fun `persist passport leaves a sideways capture alone when it reads best upright`() = runTest {
+        val composed = mutableListOf<CardComposer.Side>()
+        val passportStore = ScanStore(
+            context,
+            // Only the untouched preview yields text: a whole open passport, say.
+            textExtractor = TextExtractor { f -> if (f.name == "orient-0.jpg") "P<GBRSURNAME<<GIVEN<<<<<<<" else "" },
+            pdfBuilder = { pages, out -> out.writeText("pdf with ${pages.size} pages") },
+            cardComposer = { sides, _, out -> composed += sides; out.writeBytes(Fixtures.jpegBytes()) },
+        )
+        val payload = ScanPayload(
+            pdf = null,
+            pages = listOf(Fixtures.fileUri(sourceDir, "tall.jpg", Fixtures.jpegBytes(Color.RED, width = 100, height = 160))),
+            kind = ScanKind.Passport,
+        )
+
+        passportStore.persist(payload)
+
+        assertThat(composed.single().rotation).isEqualTo(0)
+    }
+
+    // Real pixels so the fake OCR can tell which way the preview is turned.
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Test fun `persist passport turns a sideways capture the way OCR reads it`() = runTest {
+        // "Reads" only when the red half (the photo page's top) ends up on the left,
+        // which is the anticlockwise turn.
+        val readsWhenRedIsLeft = TextExtractor { f ->
+            val bmp = android.graphics.BitmapFactory.decodeFile(f.absolutePath)
+            val px = bmp.getPixel(bmp.width / 10, bmp.height / 2)
+            bmp.recycle()
+            if (Color.red(px) > 200 && Color.blue(px) < 80) "P<GBRSURNAME<<GIVEN<<<<<<<" else ""
+        }
+        val passportStore = ScanStore(
+            context,
+            textExtractor = readsWhenRedIsLeft,
+            pdfBuilder = { pages, out -> out.writeText("pdf with ${pages.size} pages") },
+        )
+        val payload = ScanPayload(
+            pdf = null,
+            pages = listOf(
+                Fixtures.fileUri(
+                    sourceDir, "tall.jpg",
+                    Fixtures.twoToneJpegBytes(Color.RED, Color.BLUE, width = 100, height = 160),
+                ),
+            ),
+            kind = ScanKind.Passport,
+        )
+
+        val scan = passportStore.persist(payload)
+
+        val page = android.graphics.BitmapFactory.decodeFile(scan.pages.single().absolutePath)
+        assertThat(page.width).isEqualTo(CardComposer.PageWidthPx)
+        val slot = CardComposer.layout(
+            listOf(CardComposer.Size(160, 100)),
+            CardComposer.Spec.Passport.maxLongEdgePx,
+        ).single()
+        val leftPx = page.getPixel(slot.left + slot.width() / 4, slot.centerY())
+        val rightPx = page.getPixel(slot.right - slot.width() / 4, slot.centerY())
+        page.recycle()
+
+        assertThat(Color.red(leftPx)).isAtLeast(200)
+        assertThat(Color.blue(rightPx)).isAtLeast(200)
+        val leftovers = scan.pdf.parentFile!!.list()!!.filter { it.startsWith("orient-") || it.startsWith("side-") }
+        assertThat(leftovers).isEmpty()
     }
 
     @Test fun `persist with no pdf throws and leaves no directory behind`() = runTest {
