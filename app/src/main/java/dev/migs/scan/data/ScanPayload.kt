@@ -10,12 +10,17 @@ import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
 data class ScanPayload(
     val pdf: Uri?,
     val pages: List<Uri>,
+    val kind: ScanKind = ScanKind.Document,
 ) {
     companion object {
-        fun fromMlKit(result: GmsDocumentScanningResult): ScanPayload =
+        fun fromMlKit(
+            result: GmsDocumentScanningResult,
+            kind: ScanKind = ScanKind.Document,
+        ): ScanPayload =
             ScanPayload(
                 pdf = result.pdf?.uri,
                 pages = result.pages.orEmpty().map { it.imageUri },
+                kind = kind,
             )
     }
 }

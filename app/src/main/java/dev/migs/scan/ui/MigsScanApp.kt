@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
@@ -76,6 +77,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.migs.scan.data.Scan
+import dev.migs.scan.data.ScanKind
 import dev.migs.scan.settings.Preset
 import dev.migs.scan.settings.SettingsScreen
 import dev.migs.scan.settings.SettingsViewModel
@@ -129,6 +131,10 @@ fun MigsScanApp(
 
     val launchScanner = rememberDocumentScannerLauncher(settings.scannerUi) { result ->
         if (result != null) vm.onScanResult(result)
+    }
+    // Front + back only; the two sides get composed onto a single page.
+    val launchIdCardScanner = rememberDocumentScannerLauncher(settings.scannerUi, pageLimit = 2) { result ->
+        if (result != null) vm.onScanResult(result, ScanKind.IdCard)
     }
 
     if (settingsOpen) {
@@ -184,16 +190,31 @@ fun MigsScanApp(
                     // Hide the Scan FAB while selecting — its position competes
                     // with the contextual top bar's mental model.
                     if (!inSelectionMode) {
-                        ExtendedFloatingActionButton(
-                            onClick = launchScanner,
-                            icon = { Icon(Icons.Filled.DocumentScanner, contentDescription = null) },
-                            text = { Text("Scan") },
-                        )
+                        Column(horizontalAlignment = Alignment.End) {
+                            // Tonal (secondary) so it reads as the lesser of the two.
+                            ExtendedFloatingActionButton(
+                                onClick = launchIdCardScanner,
+                                icon = { Icon(Icons.Filled.Badge, contentDescription = null) },
+                                text = { Text("ID card") },
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            ExtendedFloatingActionButton(
+                                onClick = launchScanner,
+                                icon = { Icon(Icons.Filled.DocumentScanner, contentDescription = null) },
+                                text = { Text("Scan") },
+                            )
+                        }
                     }
                 },
             ) { padding ->
                 when {
-                    scans.isEmpty() -> EmptyState(padding = padding, onScanClick = launchScanner)
+                    scans.isEmpty() -> EmptyState(
+                        padding = padding,
+                        onScanClick = launchScanner,
+                        onIdCardClick = launchIdCardScanner,
+                    )
                     else -> ScanListWithSearch(
                         scans = scans,
                         filtered = filtered,
@@ -336,7 +357,7 @@ private fun SelectionTopBar(count: Int, onCancel: () -> Unit, onDelete: () -> Un
 }
 
 @Composable
-private fun EmptyState(padding: PaddingValues, onScanClick: () -> Unit) {
+private fun EmptyState(padding: PaddingValues, onScanClick: () -> Unit, onIdCardClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -353,6 +374,12 @@ private fun EmptyState(padding: PaddingValues, onScanClick: () -> Unit) {
             Icon(Icons.Filled.DocumentScanner, contentDescription = null)
             Spacer(Modifier.size(ButtonDefaults.IconSpacing))
             Text("Scan a document", fontSize = 16.sp)
+        }
+        Spacer(Modifier.height(8.dp))
+        TextButton(onClick = onIdCardClick, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Filled.Badge, contentDescription = null)
+            Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+            Text("Or scan an ID card — front and back on one page")
         }
     }
 }

@@ -21,16 +21,20 @@ import dev.migs.scan.settings.ScannerUi
 /**
  * Returns a callback that launches the ML Kit document scanner. Caller
  * gets the parsed result via [onResult]; null means cancelled or failed.
+ *
+ * [pageLimit] overrides the per-UI default (1 for Quick, 50 for Full) —
+ * e.g. 2 for an ID card's front and back.
  */
 @Composable
 fun rememberDocumentScannerLauncher(
     scannerUi: ScannerUi = ScannerUi.Full,
+    pageLimit: Int? = null,
     onResult: (GmsDocumentScanningResult?) -> Unit,
 ): () -> Unit {
     val activity = LocalContext.current as? ComponentActivity
         ?: error("rememberDocumentScannerLauncher must be hosted inside a ComponentActivity")
 
-    val scanner: GmsDocumentScanner = remember(scannerUi) {
+    val scanner: GmsDocumentScanner = remember(scannerUi, pageLimit) {
         val options = GmsDocumentScannerOptions.Builder()
             .setScannerMode(
                 when (scannerUi) {
@@ -39,7 +43,7 @@ fun rememberDocumentScannerLauncher(
                 },
             )
             .setGalleryImportAllowed(true)
-            .setPageLimit(if (scannerUi == ScannerUi.Quick) 1 else 50)
+            .setPageLimit(pageLimit ?: if (scannerUi == ScannerUi.Quick) 1 else 50)
             .setResultFormats(RESULT_FORMAT_JPEG, RESULT_FORMAT_PDF)
             .build()
         GmsDocumentScanning.getClient(options)

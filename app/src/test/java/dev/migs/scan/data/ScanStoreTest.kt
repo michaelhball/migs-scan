@@ -289,13 +289,81 @@ class ScanStoreTest {
         assertThat(grown.text).isEqualTo("ORIGINAL\n\nNEW PAGE")
     }
 
-    @Test fun `persist with no pdf throws`() = runTest {
+    @Test fun `persist ID card composes the sides onto one page and builds its own PDF`() = runTest {
+        val composedFrom = mutableListOf<String>()
+        val idStore = ScanStore(
+            context,
+            textExtractor = TextExtractor { f -> "OCR of ${f.name}" },
+            pdfBuilder = { pages, out -> out.writeText("pdf with ${pages.size} pages") },
+            idCardComposer = { sides, out ->
+                composedFrom += sides.map { it.name }
+                out.writeBytes(Fixtures.jpegBytes())
+            },
+        )
+        val payload = ScanPayload(
+            pdf = null,  // ML Kit's one-sheet-per-side PDF must not be required
+            pages = listOf(
+                Fixtures.fileUri(sourceDir, "front.jpg", Fixtures.jpegBytes(Color.RED)),
+                Fixtures.fileUri(sourceDir, "back.jpg", Fixtures.jpegBytes(Color.BLUE)),
+            ),
+            kind = ScanKind.IdCard,
+        )
+
+        val scan = idStore.persist(payload)
+
+        assertThat(composedFrom).containsExactly("side-1.jpg", "side-2.jpg").inOrder()
+        assertThat(scan.pages.map { it.name }).containsExactly("page-1.jpg")
+        assertThat(scan.pdf.readText()).isEqualTo("pdf with 1 pages")
+        assertThat(scan.name).startsWith("ID card ")
+        assertThat(scan.text).isEqualTo("OCR of page-1.jpg")
+        // The raw sides are only staging: nothing but the composed page remains.
+        val leftovers = scan.pdf.parentFile!!.list()!!.filter { it.startsWith("side-") }
+        assertThat(leftovers).isEmpty()
+        // And it reloads like any other scan.
+        assertThat(idStore.loadAll().single().pages).hasSize(1)
+    }
+
+    @Test fun `persist ID card with the real composer produces a full-size page`() = runTest {
+        val idStore = ScanStore(
+            context,
+            textExtractor = TextExtractor.Empty,
+            pdfBuilder = { pages, out -> out.writeText("pdf with ${pages.size} pages") },
+        )
+        val payload = ScanPayload(
+            pdf = null,
+            pages = listOf(
+                Fixtures.fileUri(sourceDir, "front.jpg", Fixtures.jpegBytes(Color.RED, width = 160, height = 100)),
+                Fixtures.fileUri(sourceDir, "back.jpg", Fixtures.jpegBytes(Color.BLUE, width = 160, height = 100)),
+            ),
+            kind = ScanKind.IdCard,
+        )
+
+        val scan = idStore.persist(payload)
+
+        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        android.graphics.BitmapFactory.decodeFile(scan.pages.single().absolutePath, bounds)
+        assertThat(bounds.outWidth).isEqualTo(IdCardComposer.PageWidthPx)
+        assertThat(bounds.outHeight).isEqualTo(IdCardComposer.PageHeightPx)
+    }
+
+    @Test fun `persist ID card with no sides throws and leaves no directory behind`() = runTest {
+        try {
+            store.persist(ScanPayload(pdf = null, pages = emptyList(), kind = ScanKind.IdCard))
+            error("expected IllegalArgumentException")
+        } catch (expected: IllegalArgumentException) {
+            assertThat(expected).hasMessageThat().contains("sides")
+        }
+        assertThat(File(context.filesDir, "scans").list().orEmpty()).isEmpty()
+    }
+
+    @Test fun `persist with no pdf throws and leaves no directory behind`() = runTest {
         try {
             store.persist(ScanPayload(pdf = null, pages = emptyList()))
             error("expected IllegalStateException")
         } catch (expected: IllegalStateException) {
             assertThat(expected).hasMessageThat().contains("PDF")
         }
+        assertThat(File(context.filesDir, "scans").list().orEmpty()).isEmpty()
     }
 
     private fun payload(name: String = "src"): ScanPayload = ScanPayload(

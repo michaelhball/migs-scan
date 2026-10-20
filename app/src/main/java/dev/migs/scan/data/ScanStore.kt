@@ -16,6 +16,7 @@ class ScanStore(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val textExtractor: TextExtractor = TextExtractor.mlKit(context),
     private val pdfBuilder: (pages: List<File>, outFile: File) -> Unit = PdfBuilder::build,
+    private val idCardComposer: (sides: List<File>, outFile: File) -> Unit = IdCardComposer::compose,
 ) {
 
     private val root: File by lazy {
@@ -27,14 +28,19 @@ class ScanStore(
         val id = "${createdAt.toEpochMilli()}-${UUID.randomUUID().toString().take(8)}"
         val dir = File(root, id).apply { mkdirs() }
 
-        val pdfUri = payload.pdf ?: error("ScanPayload has no PDF")
-        val pdf = File(dir, "doc.pdf").also { copyFromUri(pdfUri, it) }
-
-        val pages = payload.pages.mapIndexed { index, uri ->
-            File(dir, "page-${index + 1}.jpg").also { copyFromUri(uri, it) }
+        val (pdf, pages) = try {
+            when (payload.kind) {
+                ScanKind.Document -> materialiseDocument(payload, dir)
+                ScanKind.IdCard -> materialiseIdCard(payload, dir)
+            }
+        } catch (t: Throwable) {
+            // Don't leave a half-written directory behind: loadAll() would
+            // skip it (no doc.pdf) but it would still take up space forever.
+            dir.deleteRecursively()
+            throw t
         }
 
-        val name = defaultName(createdAt)
+        val name = defaultName(createdAt, payload.kind)
         File(dir, NameFile).writeText(name)
 
         val perPage = mutableListOf<String>()
@@ -49,6 +55,35 @@ class ScanStore(
         if (text.isNotEmpty()) File(dir, TextFile).writeText(text)
 
         Scan(id = id, name = name, createdAt = createdAt, pdf = pdf, pages = pages, starred = false, text = text)
+    }
+
+    /** One JPEG per page, and ML Kit's own PDF taken as-is. */
+    private fun materialiseDocument(payload: ScanPayload, dir: File): Pair<File, List<File>> {
+        val pdfUri = payload.pdf ?: error("ScanPayload has no PDF")
+        val pdf = File(dir, "doc.pdf").also { copyFromUri(pdfUri, it) }
+        val pages = payload.pages.mapIndexed { index, uri ->
+            File(dir, "page-${index + 1}.jpg").also { copyFromUri(uri, it) }
+        }
+        return pdf to pages
+    }
+
+    /**
+     * Front and back composed onto one page, and a PDF built from that.
+     * ML Kit's PDF (one full sheet per side) is deliberately ignored.
+     */
+    private fun materialiseIdCard(payload: ScanPayload, dir: File): Pair<File, List<File>> {
+        require(payload.pages.isNotEmpty()) { "ID card payload has no sides" }
+        val sides = payload.pages.take(2).mapIndexed { index, uri ->
+            File(dir, "side-${index + 1}.jpg").also { copyFromUri(uri, it) }
+        }
+        val page = File(dir, "page-1.jpg")
+        try {
+            idCardComposer(sides, page)
+        } finally {
+            sides.forEach { it.delete() }
+        }
+        val pdf = File(dir, "doc.pdf").also { pdfBuilder(listOf(page), it) }
+        return pdf to listOf(page)
     }
 
     suspend fun loadAll(): List<Scan> = withContext(ioDispatcher) {
@@ -201,6 +236,12 @@ class ScanStore(
         private val DefaultNameFormat: DateTimeFormatter =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HHmm").withZone(ZoneId.systemDefault())
 
-        internal fun defaultName(createdAt: Instant): String = "Scan ${DefaultNameFormat.format(createdAt)}"
+        internal fun defaultName(createdAt: Instant, kind: ScanKind = ScanKind.Document): String {
+            val prefix = when (kind) {
+                ScanKind.Document -> "Scan"
+                ScanKind.IdCard -> "ID card"
+            }
+            return "$prefix ${DefaultNameFormat.format(createdAt)}"
+        }
     }
 }

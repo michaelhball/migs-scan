@@ -27,8 +27,13 @@ object Fixtures {
     }
 
     /** Tiny solid-colour JPEG encoded via Android's Bitmap. */
-    fun jpegBytes(color: Int = Color.WHITE, size: Int = 8): ByteArray {
-        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888).apply {
+    fun jpegBytes(
+        color: Int = Color.WHITE,
+        size: Int = 8,
+        width: Int = size,
+        height: Int = size,
+    ): ByteArray {
+        val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).apply {
             eraseColor(color)
         }
         val baos = java.io.ByteArrayOutputStream()

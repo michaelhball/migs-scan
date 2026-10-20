@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
 import dev.migs.scan.data.Scan
+import dev.migs.scan.data.ScanKind
 import dev.migs.scan.data.ScanPayload
 import dev.migs.scan.data.ScanStore
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult as MlKitResult
@@ -29,8 +30,8 @@ class ScanViewModel internal constructor(
         }
     }
 
-    fun onScanResult(result: GmsDocumentScanningResult) {
-        onPayload(ScanPayload.fromMlKit(result))
+    fun onScanResult(result: GmsDocumentScanningResult, kind: ScanKind = ScanKind.Document) {
+        onPayload(ScanPayload.fromMlKit(result, kind))
     }
 
     internal fun onPayload(payload: ScanPayload) {
